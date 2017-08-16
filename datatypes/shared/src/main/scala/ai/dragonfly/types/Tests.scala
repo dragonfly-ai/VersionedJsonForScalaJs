@@ -2,9 +2,14 @@ package ai.dragonfly.types
 
 import scala.collection.immutable.HashSet
 
+import scala.reflect._
+
 object Tests {
 
   def testVersionedJson() = {
+
+    implicit val registry: VersionedJSONReaders = TestRegistry.registry
+
     val foo3 = Foo(Integer.MAX_VALUE, Long.MaxValue, Float.MaxValue, Double.MaxValue, true)
     val jsonString: String = foo3.JSON
     println(jsonString)

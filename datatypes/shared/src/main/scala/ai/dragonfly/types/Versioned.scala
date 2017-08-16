@@ -74,7 +74,7 @@ object VersionedJSON {
   implicit def jsValueToString(jsv: JsValue): String = jsv.asInstanceOf[JsString].value
   implicit def jsValueToJsArray(jsv: JsValue): JsArray = jsv.asInstanceOf[JsArray]
 
-  def jsArrayToArray[T <: WritesVersionedJSON](jsArr: JsArray)(implicit tag: ClassTag[T]): Array[T] = {
+  def jsArrayToArray[T <: WritesVersionedJSON](jsArr: JsArray)(implicit tag: ClassTag[T], registry: VersionedJSONReaders): Array[T] = {
 
     val output = new Array[T](jsArr.value.size)
 
@@ -92,11 +92,6 @@ object VersionedJSON {
 
   implicit def hashMapToJsObject(jsObj: Map[String, JsValue]): JsObject = JsObject(jsObj)
 
-  private val registry = HashMap[String, ReadsVersionedJSON[_]]()
-
-  def registerVersionedJsonReader(params: (String, ReadsVersionedJSON[_])*) = synchronized {
-    for ((className, reader) <- params) registry.put(className, reader)
-  }
 
   def getVersionInfo(jsObj: JsObject): Option[VersionInfo] = {
 
@@ -111,10 +106,10 @@ object VersionedJSON {
     )
   }
 
-  def fromJsValue[T <: WritesVersionedJSON](jsv: JsValue)(implicit tag: ClassTag[T]): Option[T] = {
+  def fromJsValue[T <: WritesVersionedJSON](jsv: JsValue)(implicit tag: ClassTag[T], registry: VersionedJSONReaders): Option[T] = {
     for {
       vi <- getVersionInfo(jsv.asInstanceOf[JsObject])
-      readerObj <- VersionedJSON.registry.get(vi.className)
+      readerObj <- registry(vi.className)
       reader <- readerObj.versionReaders.get(vi.versionId)
       payload <- reader(vi.value)
     } yield payload.asInstanceOf[T]
@@ -122,5 +117,16 @@ object VersionedJSON {
   }
 
   @JSExport
-  def fromJSON[T <: WritesVersionedJSON](jsonText: String)(implicit tag: ClassTag[T]): Option[T] = fromJsValue(Json.read(jsonText))
+  def fromJSON[T <: WritesVersionedJSON](jsonText: String)(implicit tag: ClassTag[T], registry: VersionedJSONReaders): Option[T] = fromJsValue(Json.read(jsonText))
+}
+
+class VersionedJSONReaders() {
+
+  private val registry = HashMap[String, ReadsVersionedJSON[_]]()
+
+  def registerVersionedJsonReader(params: (String, ReadsVersionedJSON[_])*) = synchronized {
+    for ((className, reader) <- params) registry.put(className, reader)
+  }
+
+  def apply(className: String): Option[ReadsVersionedJSON[_]] = registry.get(className)
 }

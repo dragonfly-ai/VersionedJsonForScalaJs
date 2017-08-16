@@ -2,11 +2,11 @@ package ai.dragonfly.types
 
 import microjson.{JsArray, JsObject, JsValue, Json}
 import VersionedJSON._
+import TestRegistry.registry
 
 import scala.collection.immutable.HashSet
 import scala.reflect._
 import scala.scalajs.js.annotation.JSExport
-
 
 object VersionsOfFooSerializations {
   val v0_1 = """{ "#cls": "com.whatever.Foo", "#vid": 0.1, "#val": {"s": "foo", "f": 3.4028235E38, "i": 2147483647, "l": "9223372036854775807", "d": 1.7976931348623157E308}}"""
@@ -16,11 +16,6 @@ object VersionsOfFooSerializations {
 
 @JSExport
 object Foo extends ReadsVersionedJSON[Foo] {
-
-  VersionedJSON registerVersionedJsonReader(
-    "com.whatever.Foo" -> this,
-    "ai.dragonfly.types.Foo" -> this
-  )
 
   override def clazzTag: ClassTag[Foo] = classTag[Foo]
 
@@ -98,10 +93,6 @@ object VersionsOfBarSerializations {
 @JSExport
 object Bar extends ReadsVersionedJSON[Bar] {
 
-  VersionedJSON registerVersionedJsonReader(
-    "ai.dragonfly.types.Bar" -> this
-  )
-
   override def clazzTag = classTag[Bar]
 
   def read0_1And0_2 = (jsValue: JsValue) => {
@@ -110,7 +101,7 @@ object Bar extends ReadsVersionedJSON[Bar] {
     try {
       Some(
         Bar(
-          jsObj.value("s"), HashSet[Foo]() ++ jsArrayToArray[Foo](jsObj.value("foos"))
+          jsObj.value("s"), HashSet[Foo]() ++ jsArrayToArray[Foo](jsObj.value("foos"))(classTag[Foo], registry)
         )
       )
     } catch {

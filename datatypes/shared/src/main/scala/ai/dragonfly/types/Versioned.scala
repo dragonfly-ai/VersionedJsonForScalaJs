@@ -43,8 +43,6 @@ case class VersionInfo(className: String, versionId: Double, value: JsValue)
 
 trait ReadsVersionedJSON[T] {
 
-  @JSExport def clazzTag: ClassTag[T]
-
   val versionReaders: Map[Double, (JsValue) => Option[WritesVersionedJSON]]
 
 }

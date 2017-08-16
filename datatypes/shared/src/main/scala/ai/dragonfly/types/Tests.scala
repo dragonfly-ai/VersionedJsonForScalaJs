@@ -29,7 +29,7 @@ object Tests {
       f1 <- foo1
       f2 <- foo2
     } yield HashSet(f1.asInstanceOf[Foo], f2.asInstanceOf[Foo], foo3) match {
-      case fooSet =>
+      case fooSet: Set[Foo] =>
         val bar1 = Bar("two guys walked into a bar", fooSet)
         println(bar1)
         val bar1Json = bar1.JSON

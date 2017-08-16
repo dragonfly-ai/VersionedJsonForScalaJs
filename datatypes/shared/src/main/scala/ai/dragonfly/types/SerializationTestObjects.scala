@@ -17,8 +17,6 @@ object VersionsOfFooSerializations {
 @JSExport
 object Foo extends ReadsVersionedJSON[Foo] {
 
-  override def clazzTag: ClassTag[Foo] = classTag[Foo]
-
   override val versionReaders = Map[Double, (JsValue) => Option[Foo]](
     0.1 -> ((jsValue: JsValue) =>  {
       val jsObj: JsObject = jsValue.asInstanceOf[JsObject]
@@ -92,16 +90,14 @@ object VersionsOfBarSerializations {
 
 @JSExport
 object Bar extends ReadsVersionedJSON[Bar] {
-
-  override def clazzTag = classTag[Bar]
-
+  implicit val registry = TestRegistry.registry
   def read0_1And0_2 = (jsValue: JsValue) => {
     val jsObj: JsObject = jsValue.asInstanceOf[JsObject]
 
     try {
       Some(
         Bar(
-          jsObj.value("s"), HashSet[Foo]() ++ jsArrayToArray[Foo](jsObj.value("foos"))(classTag[Foo], registry)
+          jsObj.value("s"), HashSet[Foo]() ++ jsArrayToArray[Foo](jsObj.value("foos"))
         )
       )
     } catch {

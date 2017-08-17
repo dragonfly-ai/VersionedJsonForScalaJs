@@ -4,7 +4,7 @@ import microjson.{JsValue, _}
 
 import scala.collection.mutable.HashMap
 import scala.reflect.ClassTag
-import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
 
 /**
   * trait for classes
@@ -51,7 +51,7 @@ trait ReadsVersionedJson[T] {
   Versioned JSON serialiation registry
  */
 
-@JSExport("VersionedJson")
+@JSExportTopLevel("VersionedJson")
 object VersionedJson {
 
   // Implicits:

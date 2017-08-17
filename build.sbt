@@ -1,6 +1,6 @@
-import sbt.Keys._
+import sbt.Keys.{scalacOptions, _}
 
-scalaVersion in ThisBuild := "2.12.0"
+scalaVersion in ThisBuild := "2.12.3"
 
 name in ThisBuild := "VersionedJsonForScalaJs"
 
@@ -25,3 +25,4 @@ lazy val js = datatypes.js
 
 lazy val jvm = datatypes.jvm
 
+scalacOptions += "-feature"

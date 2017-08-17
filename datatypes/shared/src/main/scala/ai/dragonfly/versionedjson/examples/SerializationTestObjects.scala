@@ -5,7 +5,7 @@ import VersionedJson._
 import microjson.{JsArray, JsObject, JsValue}
 
 import scala.collection.immutable.HashSet
-import scala.scalajs.js.annotation.JSExport
+import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
 
 object VersionsOfFooSerializations {
   val v0_1 = """{ "#cls": "com.whatever.Foo", "#vid": 0.1, "#val": {"s": "foo", "f": 3.4028235E38, "i": 2147483647, "l": "9223372036854775807", "d": 1.7976931348623157E308}}"""
@@ -13,7 +13,7 @@ object VersionsOfFooSerializations {
   val v0_3 = """{"#val": {"f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}, "#cls": "ai.dragonfly.versionedjson.examples.Foo", "#vid": 0.3}"""
 }
 
-@JSExport
+@JSExportTopLevel("Foo")
 object Foo extends ReadsVersionedJson[Foo] {
 
   override val versionReaders = Map[Double, (JsValue) => Option[Foo]](
@@ -87,7 +87,7 @@ object VersionsOfBarSerializations {
   val bar0_1 = """{"#cls": "ai.dragonfly.versionedjson.examples.Bar", "#vid": 0.1, "#val": {"s": "two guys walked into a bar", "foos": [{"#cls": "ai.dragonfly.types.Foo", "#vid": 0.3, "#val": {"f": 3.4028235E38, "i": 2147483647, "b": false, "l": "9223372036854775807", "d": 1.7976931348623157E308}}, {"#cls": "ai.dragonfly.types.Foo", "#vid": 0.3, "#val": {"f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}}, {"#cls": "ai.dragonfly.types.Foo", "#vid": 0.3, "#val": {"f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}}]}}"""
 }
 
-@JSExport
+@JSExportTopLevel("Bar")
 object Bar extends ReadsVersionedJson[Bar] {
   implicit val registry = TestRegistry.registry
   def read0_1And0_2 = (jsValue: JsValue) => {

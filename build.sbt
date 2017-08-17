@@ -4,7 +4,7 @@ scalaVersion in ThisBuild := "2.12.3"
 
 name in ThisBuild := "VersionedJsonForScalaJs"
 
-organization in ThisBuild := "ai.dragonfly"
+organization in ThisBuild := "ai.dragonfly.code"
 
 version in ThisBuild := "0.1"
 

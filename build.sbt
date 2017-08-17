@@ -2,7 +2,7 @@ import sbt.Keys._
 
 scalaVersion in ThisBuild := "2.12.0"
 
-name in ThisBuild := "distributed"
+name in ThisBuild := "VersionedJsonForScalaJs"
 
 organization in ThisBuild := "ai.dragonfly"
 
@@ -24,6 +24,4 @@ val datatypes = crossProject.settings(
 lazy val js = datatypes.js
 
 lazy val jvm = datatypes.jvm
-
-mainClass in (Compile,run) := Some("ai.dragonfly.types.TestVersionedJSON")
 

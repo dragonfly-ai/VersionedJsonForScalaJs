@@ -1,4 +1,4 @@
-package ai.dragonfly.types
+package ai.dragonfly.versionedjson
 
 import microjson.{JsValue, _}
 
@@ -14,13 +14,13 @@ trait Versioned {
   def vid: Double
 }
 
-trait WritesJSON {
+trait WritesJson {
   def toJsValue:JsValue
   def JSON : String = Json.write(this.toJsValue)
 }
 
-trait WritesVersionedJSON extends Versioned with WritesJSON {
-  import VersionedJSON._
+trait WritesVersionedJson extends Versioned with WritesJson {
+  import VersionedJson._
 
   def toJsValue(value: JsObject): JsValue = {
     JsObj(
@@ -35,15 +35,15 @@ trait WritesVersionedJSON extends Versioned with WritesJSON {
   * trait for companion objects
   */
 
-trait ReadsJSON {
-  def fromJSON(jsonString: String): Option[WritesJSON]
+trait ReadsJson {
+  def fromJSON(jsonString: String): Option[WritesJson]
 }
 
 case class VersionInfo(className: String, versionId: Double, value: JsValue)
 
-trait ReadsVersionedJSON[T] {
+trait ReadsVersionedJson[T] {
 
-  val versionReaders: Map[Double, (JsValue) => Option[WritesVersionedJSON]]
+  val versionReaders: Map[Double, (JsValue) => Option[WritesVersionedJson]]
 
 }
 
@@ -51,8 +51,8 @@ trait ReadsVersionedJSON[T] {
   Versioned JSON serialiation registry
  */
 
-@JSExport("VersionedJSON")
-object VersionedJSON {
+@JSExport("VersionedJson")
+object VersionedJson {
 
   // Implicits:
   //implicit def jsonStringToJsValue(jsonString: String): JsValue = Json.read(jsonString)
@@ -72,15 +72,15 @@ object VersionedJSON {
   implicit def jsValueToString(jsv: JsValue): String = jsv.asInstanceOf[JsString].value
   implicit def jsValueToJsArray(jsv: JsValue): JsArray = jsv.asInstanceOf[JsArray]
 
-  def jsArrayToArray[T <: WritesVersionedJSON](jsArr: JsArray)(implicit tag: ClassTag[T], registry: VersionedJSONReaders): Array[T] = {
+  def jsArrayToArray[T <: WritesVersionedJson](jsArr: JsArray)(implicit tag: ClassTag[T], registry: VersionedJsonReaders): Array[T] = {
 
     val output = new Array[T](jsArr.value.size)
 
     var i = 0
     for (f <- jsArr.value) {
-      VersionedJSON.fromJsValue(f) match {
+      VersionedJson.fromJsValue(f) match {
         case Some(obj) => output(i) = obj.asInstanceOf[T]
-        case _ => throw new Exception( "Could not interperet: " + Json.write(f))
+        case _ => throw new Exception( "Could not interpret: " + Json.write(f))
       }
       i = i + 1
     }
@@ -104,7 +104,7 @@ object VersionedJSON {
     )
   }
 
-  def fromJsValue[T <: WritesVersionedJSON](jsv: JsValue)(implicit tag: ClassTag[T], registry: VersionedJSONReaders): Option[T] = {
+  def fromJsValue[T <: WritesVersionedJson](jsv: JsValue)(implicit tag: ClassTag[T], registry: VersionedJsonReaders): Option[T] = {
     for {
       vi <- getVersionInfo(jsv.asInstanceOf[JsObject])
       readerObj <- registry(vi.className)
@@ -115,16 +115,16 @@ object VersionedJSON {
   }
 
   @JSExport
-  def fromJSON[T <: WritesVersionedJSON](jsonText: String)(implicit tag: ClassTag[T], registry: VersionedJSONReaders): Option[T] = fromJsValue(Json.read(jsonText))
+  def fromJson[T <: WritesVersionedJson](jsonText: String)(implicit tag: ClassTag[T], registry: VersionedJsonReaders): Option[T] = fromJsValue(Json.read(jsonText))
 }
 
-class VersionedJSONReaders() {
+class VersionedJsonReaders() {
 
-  private val registry = HashMap[String, ReadsVersionedJSON[_]]()
+  private val registry = HashMap[String, ReadsVersionedJson[_]]()
 
-  def registerVersionedJsonReader(params: (String, ReadsVersionedJSON[_])*) = synchronized {
+  def registerVersionedJsonReader(params: (String, ReadsVersionedJson[_])*) = synchronized {
     for ((className, reader) <- params) registry.put(className, reader)
   }
 
-  def apply(className: String): Option[ReadsVersionedJSON[_]] = registry.get(className)
+  def apply(className: String): Option[ReadsVersionedJson[_]] = registry.get(className)
 }

@@ -7,4 +7,5 @@ object TestVersionedJson {
 
   @JSExport
   def test(): Unit = Tests.testVersionedJson()
+
 }

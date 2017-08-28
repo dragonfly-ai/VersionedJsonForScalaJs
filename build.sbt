@@ -2,7 +2,7 @@ import sbt.Keys.{scalacOptions, _}
 
 scalaVersion in ThisBuild := "2.12.3"
 
-name in ThisBuild := "VersionedJsonForScalaJs"
+name in ThisBuild := "versionedjson"
 
 organization in ThisBuild := "ai.dragonfly.code"
 
@@ -10,7 +10,7 @@ version in ThisBuild := "0.1"
 
 publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" )) )
 
-val datatypes = crossProject.settings(
+val versionedjson = crossProject.settings(
   // shared settings
   libraryDependencies ++= Seq("com.github.benhutchison" %%% "microjson" % "1.4")
 ).jsSettings(
@@ -21,8 +21,8 @@ val datatypes = crossProject.settings(
   libraryDependencies += "org.scala-js" %% "scalajs-stubs" % scalaJSVersion % "provided"
 )
 
-lazy val js = datatypes.js
+lazy val js = versionedjson.js
 
-lazy val jvm = datatypes.jvm
+lazy val jvm = versionedjson.jvm
 
 scalacOptions += "-feature"

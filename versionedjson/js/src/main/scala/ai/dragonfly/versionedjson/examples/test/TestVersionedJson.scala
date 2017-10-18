@@ -6,6 +6,9 @@ import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
 object TestVersionedJson {
 
   @JSExport
-  def test(): Unit = Tests.testVersionedJson()
+  def test(): Unit = {
+    println("Testing Versioned JSON.")
+    Tests.testVersionedJson()
+  }
 
 }

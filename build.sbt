@@ -12,7 +12,10 @@ publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven"
 
 val versionedjson = crossProject.settings(
   // shared settings
-  libraryDependencies ++= Seq("com.github.benhutchison" %%% "microjson" % "1.4")
+  libraryDependencies ++= Seq(
+    "com.github.benhutchison" %%% "microjson" % "1.4",
+    "org.scala-lang" % "scala-reflect" % "2.12.3"
+  )
 ).jsSettings(
   // JS-specific settings here
   jsDependencies += RuntimeDOM

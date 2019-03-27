@@ -1,38 +1,45 @@
 package ai.dragonfly.versionedjson
 
-import microjson.{JsValue, _}
-
 import scala.collection.mutable.HashMap
 import scala.reflect.ClassTag
 import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
+
 
 /**
   * Traits for classes and companion objects
   */
 
+object Versioned {
+
+  def toJSON(v: Versioned)(payload:String): String = ujson.Obj(
+    "#vid" -> v.vid,
+    "#cls" -> v.getClass.getName,
+    "#obj" -> ujson.read(payload)
+  ).render()
+
+  def fromJSON[T <: Versioned](jsonStr: ujson.Readable): Option[T] = {
+    val wrapper = ujson.read(jsonStr)
+    val cls = wrapper("#cls").str
+    val vid = wrapper("#vid").num
+    val rdrOption = VersionedJsonReaderRegistry.get(cls, vid)
+    println(s"cls = $cls vid = $vid rdrOption = $rdrOption")
+    rdrOption match {
+      case Some(rdr: ReadsJSON[T]) => rdr.fromJSON(wrapper("#obj"))
+      case _ => None
+    }
+  }
+}
+
 trait Versioned {
-  def vid: Double
+  val vid: Double
 }
 
 /**
   * traits for classes
   */
 
-trait WritesJson {
-  def toJsValue:JsValue
-  def JSON : String = Json.write(this.toJsValue)
-}
-
-trait WritesVersionedJson extends Versioned with WritesJson {
-  import VersionedJson._
-
-  def toJsValue(value: JsObject): JsValue = {
-    JsObj(
-      "#cls" -> this.getClass.getName,
-      "#vid" -> this.vid,
-      "#val" -> value
-    )
-  }
+trait WritesVersionedJson extends Versioned {
+  def toJSON: String
 }
 
 trait OldVersionOf[T] extends WritesVersionedJson {
@@ -45,72 +52,33 @@ trait OldVersionOf[T] extends WritesVersionedJson {
   * traits for companion objects
   */
 
-trait ReadsJsonOf[T <: Versioned] extends Versioned {
-  //def fromJson(jsonString: String): Option[T]
-  def cls: String
-  def fromJsValue(jsvalue: JsValue): Option[T]
+trait ReadsJSON[T <: Versioned] extends Versioned {
+  val cls: String
+  def fromJSON(value: ujson.Readable): Option[T]
 }
 
-case class VersionInfo(cls: String, vid: Double, value: JsValue)
-
-trait ReadsVersionedJsonOf[T <: Versioned] extends ReadsJsonOf[T] {
-  def cls: String = this.getClass.getName.split("[$]")(0)
-  val oldVersions: Array[ReadsOldJsonVersion[_]] //(JsValue) => Option[T]]
+trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
+  override val cls: String = {
+    val temp = this.getClass.getName
+    temp.substring(0, temp.length - 1)
+  }
+  val oldVersions: Array[ReadsStaleJSON[_]]
 }
 
-trait ReadsOldJsonVersion[T <: Versioned] extends ReadsJsonOf[T] {
-  def vid: Double = VersionedJson.getVersionIdFromClassName(this.getClass.getName)
+trait ReadsStaleJSON[T <: Versioned] extends ReadsJSON[T] {
+  override val vid: Double = VersionedJson.getVersionIdFromClassName(this.getClass.getName)
 }
 
 /*
-  Versioned JSON serialiation registry
+  Versioned JSON serialization registry
  */
 
 @JSExportTopLevel("VersionedJson")
 object VersionedJson {
 
-  // Implicits:
-  // implicit def jsonStringToJsValue(jsonString: String): JsValue = Json.read(jsonString)
-
-  implicit def booleanToJsBoolean(b: Boolean): JsValue = if (b) JsTrue else JsFalse
-  implicit def intToJsNumber(i: Int): JsValue = JsNumber(i.toString)
-  implicit def longToJsString(l: Long): JsValue = JsString(l.toString)
-  implicit def floatToJsNumber(f: Float): JsValue = JsNumber(f.toString)
-  implicit def doubleToJsNumber(d: Double): JsValue = JsNumber(d.toString)
-  implicit def stringToJsString(s: String): JsValue = JsString(s)
-
-  implicit def jsValueToBoolean(jsv: JsValue): Boolean = jsv.asInstanceOf[JsBoolean].value
-  implicit def jsValueToInt(jsv: JsValue): Int = java.lang.Integer.parseInt(jsv.asInstanceOf[JsNumber].value)
-  implicit def jsValueToFloat(jsv: JsValue): Float = java.lang.Float.parseFloat(jsv.asInstanceOf[JsNumber].value)
-  implicit def jsValueToDouble(jsv: JsValue): Double = java.lang.Double.parseDouble(jsv.asInstanceOf[JsNumber].value)
-  implicit def jsValueToLong(jsv: JsValue): Long = java.lang.Long.parseLong(jsv.asInstanceOf[JsString].value)
-  implicit def jsValueToString(jsv: JsValue): String = jsv.asInstanceOf[JsString].value
-  implicit def jsValueToJsArray(jsv: JsValue): JsArray = jsv.asInstanceOf[JsArray]
-
-  def jsArrayToArray[T <: WritesVersionedJson](jsArr: JsArray)(implicit tag: ClassTag[T], registry: VersionedJsonReaders): Array[T] = {
-
-    val output = new Array[T](jsArr.value.size)
-
-    var i = 0
-    for (f <- jsArr.value) {
-      VersionedJson.fromJsValue(f) match {
-        case Some(obj) => output(i) = obj.asInstanceOf[T]
-        case _ => throw new Exception( "Could not interpret: " + Json.write(f))
-      }
-      i = i + 1
-    }
-
-    output
-  }
-
-  implicit def hashMapToJsObject(jsObj: Map[String, JsValue]): JsObject = JsObject(jsObj)
-
   def getVersionIdFromClassName(oldClassName: String): Double = {
-//    println("Full: " + oldClassName)
     var temp = oldClassName.split("[$]")(1)
-//    println("First: " + temp)
     temp = temp.replace('_', '.')
-//    println("Mutated: " + temp)
     java.lang.Double.parseDouble(temp)
   }
 
@@ -123,63 +91,42 @@ object VersionedJson {
     }
   }
 
-  def getVersionInfo(jsObj: JsObject): Option[VersionInfo] = {
-
-    for {
-      cls <- jsObj.value.get("#cls")
-      version <- jsObj.value.get("#vid")
-      jsValue <- jsObj.value.get("#val")
-    } yield VersionInfo(
-      cls.value.asInstanceOf[String],
-      java.lang.Double.parseDouble(version.asInstanceOf[JsNumber].value),
-      jsValue
-    )
-  }
-
-  def fromJsValue[T <: Versioned](jsv: JsValue)(implicit tag: ClassTag[T]): Option[T] = {
-    for {
-      vi <- getVersionInfo(jsv.asInstanceOf[JsObject])
-      readerObj <- VersionedJsonReadersRegistry.get(vi.cls, vi.vid)
-      payload <- readerObj.fromJsValue(vi.value)
-    } yield payload.asInstanceOf[T] //{ println(vi); println(readerObj); println(payload); payload.asInstanceOf[T] }
-
-  }
-
   @JSExport
-  def fromJson[T <: WritesVersionedJson](jsonText: String)(implicit tag: ClassTag[T]): Option[T] = {
-    fromJsValue[T](Json.read(jsonText)) match {
+  def fromJSON[T <: WritesVersionedJson](jsonStr: String)(implicit tag: ClassTag[T]): Option[T] = {
+    Versioned.fromJSON[T](jsonStr) match {
       case Some(obj: T) => Some(obj)
       case Some(obj: OldVersionOf[_]) => upgrade[T](obj)
-      case _ => None
+      case o: Any => None
     }
-
   }
 }
 
-class VersionedJsonReaders() {
+object VersionedJsonReaders {
 
-  def registerVersionedJsonReader(readers: ReadsVersionedJsonOf[_]*) = synchronized {
-
+  def apply(readers: ReadsVersionedJSON[_]*) = synchronized {
     for (r <- readers) {
-      VersionedJsonReadersRegistry.put(r)
+      // println(s"registered reader ${r.cls}")
+      VersionedJsonReaderRegistry.put(r)
       for (ov <- r.oldVersions) {
-        VersionedJsonReadersRegistry.put(ov)
+        // println(s"registered old version reader ${ov.cls}")
+        VersionedJsonReaderRegistry.put(ov)
       }
     }
   }
 
-  def apply(cls: String, vid: Double): Option[ReadsJsonOf[_]] = VersionedJsonReadersRegistry.get(cls, vid)
+  def apply(cls: String, vid: Double): Option[ReadsJSON[_]] = VersionedJsonReaderRegistry.get(cls, vid)
 
+  override def toString: String = VersionedJsonReaderRegistry.toString
 }
 
-object VersionedJsonReadersRegistry {
-  private val registry = HashMap[String, HashMap[Double, ReadsJsonOf[_]]]()
+object VersionedJsonReaderRegistry {
+  private val registry = HashMap[String, HashMap[Double, ReadsJSON[_]]]()
 
-  def put (reader: ReadsJsonOf[_]): Unit = {
-    val hm: HashMap[Double, ReadsJsonOf[_]] = registry.get(reader.cls) match {
+  def put (reader: ReadsJSON[_]): Unit = {
+    val hm: HashMap[Double, ReadsJSON[_]] = registry.get(reader.cls) match {
       case Some(hm) => hm
       case None =>
-        val temp = new HashMap[Double, ReadsJsonOf[_]]()
+        val temp = new HashMap[Double, ReadsJSON[_]]()
         registry.put(reader.cls, temp)
         temp
     }
@@ -187,11 +134,13 @@ object VersionedJsonReadersRegistry {
     hm.put(reader.vid, reader)
   }
 
-  def get (cls: String, vid: Double): Option[ReadsJsonOf[_]] = {
+  def get (cls: String, vid: Double): Option[ReadsJSON[_]] = {
+    println(s"registry.get($cls) -> ${registry.get(cls)}")
     for {
       hm <- registry.get(cls)
       reader <- hm.get(vid)
     } yield reader
-
   }
+
+  override def toString: String = this.registry.toString()
 }

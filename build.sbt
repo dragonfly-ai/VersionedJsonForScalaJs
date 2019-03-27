@@ -1,31 +1,18 @@
-import sbt.Keys.{scalacOptions, _}
+import sbt.Keys.mainClass
+import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
 
-scalaVersion in ThisBuild := "2.12.3"
-
-name in ThisBuild := "versionedjson"
-
-organization in ThisBuild := "ai.dragonfly.code"
-
-version in ThisBuild := "0.1"
-
-publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" )) )
-
-val versionedjson = crossProject.settings(
-  // shared settings
+val sharedSettings = Seq(
+  version in ThisBuild := "0.2",
+  scalaVersion := "2.12.6",
+  organization in ThisBuild := "ai.dragonfly.code",
+  publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" )) ),
+  scalacOptions in ThisBuild ++= Seq("-feature"),
+  resolvers += "dragonfly.ai" at "http://code.dragonfly.ai/",
   libraryDependencies ++= Seq(
-    "com.github.benhutchison" %%% "microjson" % "1.4",
-    "org.scala-lang" % "scala-reflect" % "2.12.3"
-  )
-).jsSettings(
-  // JS-specific settings here
-  jsDependencies += RuntimeDOM
-).jvmSettings(
-  // JVM-specific settings here
-  libraryDependencies += "org.scala-js" %% "scalajs-stubs" % scalaJSVersion % "provided"
+    "ai.dragonfly.code" %%% "snowflake" % "0.2",
+    "com.lihaoyi" %% "upickle" % "0.7.1"
+  ),
+  mainClass in ThisBuild := Some("ai.dragonfly.versionedjson.examples.test.TestVersionedJson")
 )
 
-lazy val js = versionedjson.js
-
-lazy val jvm = versionedjson.jvm
-
-scalacOptions += "-feature"
+lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).settings(sharedSettings)

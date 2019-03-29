@@ -1,4 +1,4 @@
-# VersionedJsonForScalaJs
+# versionedjson
 Versioned JSON serialization library for Scala and Scala.js
 
 To use this library with SBT:

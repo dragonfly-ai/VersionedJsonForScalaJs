@@ -2,7 +2,7 @@ import sbt.Keys.mainClass
 import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
 
 val sharedSettings = Seq(
-  version in ThisBuild := "0.2",
+  version in ThisBuild := "0.1",
   scalaVersion := "2.12.6",
   organization in ThisBuild := "ai.dragonfly.code",
   publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" )) ),

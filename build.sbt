@@ -5,12 +5,12 @@ val sharedSettings = Seq(
   version in ThisBuild := "0.1",
   scalaVersion := "2.12.6",
   organization in ThisBuild := "ai.dragonfly.code",
-  publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" )) ),
+  publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" ))),
   scalacOptions in ThisBuild ++= Seq("-feature"),
-  resolvers += "dragonfly.ai" at "http://code.dragonfly.ai/",
+  resolvers += "dragonfly.ai" at "http://code.dragonfly.ai:8080/",
   libraryDependencies ++= Seq(
     "ai.dragonfly.code" %%% "snowflake" % "0.2",
-    "com.lihaoyi" %% "upickle" % "0.7.1"
+    "com.lihaoyi" %%% "upickle" % "0.7.1"
   ),
   mainClass in ThisBuild := Some("ai.dragonfly.versionedjson.examples.test.TestVersionedJson")
 )

@@ -1,3 +1,39 @@
+ThisBuild / scalaVersion := "2.13.3"
+
+lazy val root = project.in(file(".")).
+  aggregate(versionedjson.js, versionedjson.jvm).
+  settings(
+    publishTo := Some( Resolver.file("file",  new File( "/var/www/maven" ) ) ),
+  )
+
+lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).
+  settings(
+    publishTo := Some(Resolver.file("file",  new File("/var/www/maven"))),
+    name := "versionedjson",
+    version := "0.2",
+    resolvers ++= Seq(
+      "code.dragonfly.ai" at "https://code.dragonfly.ai"
+    ),
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" % "ujson_2.13" % "1.2.2"
+    ),
+    organization := "ai.dragonfly.code",
+    mainClass in (Compile, run) := Some("ai.dragonfly.versionedjson.examples.Test")
+  ).
+  jvmSettings(
+    // Add JVM-specific settings here
+    libraryDependencies += "org.scala-js" %% "scalajs-stubs" % "1.0.0" % "provided",
+    //mainClass in (Compile, run) := Some("ai.dragonfly.versionedjson.examples.Test")
+  ).
+  jsSettings(
+    // Add JS-specific settings here
+    libraryDependencies ++= Seq(
+      "com.lihaoyi" % "ujson_sjs1_2.13" % "1.2.2"
+    ),
+    scalaJSUseMainModuleInitializer := true
+  )
+
+/*
 import sbt.Keys.mainClass
 import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
 
@@ -16,3 +52,4 @@ val sharedSettings = Seq(
 )
 
 lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).settings(sharedSettings)
+*/

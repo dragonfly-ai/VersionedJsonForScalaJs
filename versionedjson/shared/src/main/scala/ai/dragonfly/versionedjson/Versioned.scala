@@ -1,37 +1,15 @@
 package ai.dragonfly.versionedjson
 
-import scala.collection.mutable.HashMap
+import scala.collection.mutable
 import scala.reflect.ClassTag
-import scala.scalajs.js.annotation.{JSExport, JSExportTopLevel}
-
 
 /**
   * Traits for classes and companion objects
   */
 
-object Versioned {
-
-  def toJSON(v: Versioned)(payload:String): String = ujson.Obj(
-    "#vid" -> v.vid,
-    "#cls" -> v.getClass.getName,
-    "#obj" -> ujson.read(payload)
-  ).render()
-
-  def fromJSON[T <: Versioned](jsonStr: ujson.Readable): Option[T] = {
-    val wrapper = ujson.read(jsonStr)
-    val cls = wrapper("#cls").str
-    val vid = wrapper("#vid").num
-    val rdrOption = VersionedJsonReaderRegistry.get(cls, vid)
-    println(s"cls = $cls vid = $vid rdrOption = $rdrOption")
-    rdrOption match {
-      case Some(rdr: ReadsJSON[T]) => rdr.fromJSON(wrapper("#obj"))
-      case _ => None
-    }
-  }
-}
-
 trait Versioned {
   val vid: Double
+  val cls: String = this.getClass.getName
 }
 
 /**
@@ -40,10 +18,11 @@ trait Versioned {
 
 trait WritesVersionedJson extends Versioned {
   def toJSON: String
+  def toVersionedJSON: String = VersionedJSON(this)(toJSON)
 }
 
-trait OldVersionOf[T] extends WritesVersionedJson {
-  val vid: Double = VersionedJson.getVersionIdFromClassName(this.getClass.getName)
+trait OldVersionOf[T] extends Versioned {
+  val vid: Double = VersionedJSON.getVersionIdFromClassName(this.getClass.getName)
   def upgrade: Option[T]
 }
 
@@ -52,10 +31,19 @@ trait OldVersionOf[T] extends WritesVersionedJson {
   * traits for companion objects
   */
 
-trait ReadsJSON[T <: Versioned] extends Versioned {
+/*
+Internal use only.
+ */
+sealed trait ReadsJSON[T <: Versioned] extends Versioned {
   val cls: String
-  def fromJSON(value: ujson.Readable): Option[T]
+  implicit val tag: ClassTag[T] = ClassTag(this.getClass)
+  def fromJSON(rawJSON: String): Option[T]
+  // fromJSON(rawJSON: String): Option[T] = VersionedJSON.fromJSON[T](rawJSON)
 }
+
+/*
+  Meant only for the current version of the class.
+ */
 
 trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
   override val cls: String = {
@@ -63,27 +51,25 @@ trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
     temp.substring(0, temp.length - 1)
   }
   val oldVersions: Array[ReadsStaleJSON[_]]
+  def fromVersionedJSON: String => Option[T] = { VersionedJSON.Readers(this); (rjsn:String) => VersionedJSON[T](rjsn) }
 }
 
+/*
+  Only intended for past versions of classes.
+ */
 trait ReadsStaleJSON[T <: Versioned] extends ReadsJSON[T] {
-  override val vid: Double = VersionedJson.getVersionIdFromClassName(this.getClass.getName)
+  override val vid: Double = VersionedJSON.getVersionIdFromClassName(this.getClass.getName)
 }
 
 /*
   Versioned JSON serialization registry
- */
+*/
 
-@JSExportTopLevel("VersionedJson")
-object VersionedJson {
+object VersionedJSON {
 
-  def getVersionIdFromClassName(oldClassName: String): Double = {
-    var temp = oldClassName.split("[$]")(1)
-    temp = temp.replace('_', '.')
-    java.lang.Double.parseDouble(temp)
-  }
+  def getVersionIdFromClassName(className: String): Double = java.lang.Double.parseDouble( className.split("[$]")(1).replace('_', '.') )
 
-
-  def upgrade[T <: WritesVersionedJson](o: OldVersionOf[_])(implicit tag: ClassTag[T]): Option[T] = {
+  def upgrade[T <: Versioned](o: OldVersionOf[_])(implicit tag: ClassTag[T]): Option[T] = {
     o.upgrade match {
       case Some(ov: OldVersionOf[_]) => upgrade(ov)
       case Some(nv: T) => Some(nv)
@@ -91,56 +77,74 @@ object VersionedJson {
     }
   }
 
-  @JSExport
-  def fromJSON[T <: WritesVersionedJson](jsonStr: String)(implicit tag: ClassTag[T]): Option[T] = {
-    Versioned.fromJSON[T](jsonStr) match {
-      case Some(obj: T) => Some(obj)
-      case Some(obj: OldVersionOf[_]) => upgrade[T](obj)
-      case o: Any => None
-    }
-  }
-}
+  object Readers {
+    private val registry = mutable.HashMap[String, mutable.HashMap[Double, ReadsJSON[_]]]()
 
-object VersionedJsonReaders {
-
-  def apply(readers: ReadsVersionedJSON[_]*) = synchronized {
-    for (r <- readers) {
-      // println(s"registered reader ${r.cls}")
-      VersionedJsonReaderRegistry.put(r)
-      for (ov <- r.oldVersions) {
-        // println(s"registered old version reader ${ov.cls}")
-        VersionedJsonReaderRegistry.put(ov)
+    private def put (reader: ReadsJSON[_]): Unit = {
+      val hm: mutable.HashMap[Double, ReadsJSON[_]] = registry.get(reader.cls) match {
+        case Some(hm) => hm
+        case None =>
+          val temp = new mutable.HashMap[Double, ReadsJSON[_]]()
+          registry.put(reader.cls, temp)
+          temp
       }
+      hm.put(reader.vid, reader)
+    }
+
+    def get (cls: String, vid: Double): Option[ReadsJSON[_]] = {
+      //println(s"registry.get($cls) -> ${registry.get(cls)}")
+      for {
+        hm <- registry.get(cls)
+        reader <- hm.get(vid)
+      } yield reader
+    }
+
+    def apply(readers: ReadsVersionedJSON[_]*):Readers.type = synchronized {
+      for (r <- readers) {
+        println(s"Registered Reader ${r.cls}")
+        put(r)
+        for (ov <- r.oldVersions) {
+          println(s"Registered Old Version Reader ${ov.getClass.getName}")
+          put(ov)
+        }
+      }
+      this
+    }
+
+    def apply(cls: String, vid: Double): Option[ReadsJSON[_]] = get(cls, vid)
+
+    override def toString: String = this.registry.toString()
+  }
+
+  def apply(v: Versioned)(payload:String): String = s"""{"#vid":${v.vid},"#cls":"${v.cls}","#obj":$payload}"""
+
+  def unwrap(rawJSON: String): Option[Versioned] = {
+    val wrapper = ujson.read(rawJSON)
+    val cls = wrapper("#cls").str
+    val vid = wrapper("#vid").num
+    val rdrOption = VersionedJSON.Readers.get(cls, vid)
+    //println(s"cls = $cls vid = $vid rdrOption = $rdrOption")
+    rdrOption match {
+      case Some(rdr: ReadsJSON[Versioned]) =>
+        //println(s"found valid reader: $rdr")
+        rdr.fromJSON(wrapper("#obj").toString()) // may parse payload json twice.
+      case _ =>
+        System.out.println(s"VersionedJSON.Reader: Unregistered Class: $cls");
+        None
     }
   }
 
-  def apply(cls: String, vid: Double): Option[ReadsJSON[_]] = VersionedJsonReaderRegistry.get(cls, vid)
-
-  override def toString: String = VersionedJsonReaderRegistry.toString
-}
-
-object VersionedJsonReaderRegistry {
-  private val registry = HashMap[String, HashMap[Double, ReadsJSON[_]]]()
-
-  def put (reader: ReadsJSON[_]): Unit = {
-    val hm: HashMap[Double, ReadsJSON[_]] = registry.get(reader.cls) match {
-      case Some(hm) => hm
-      case None =>
-        val temp = new HashMap[Double, ReadsJSON[_]]()
-        registry.put(reader.cls, temp)
-        temp
+  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = {
+    unwrap(rawJSON) match {
+      case Some(obj: WritesVersionedJson) =>
+        //println(s"Found Current version: $obj")
+        Some(obj.asInstanceOf[T])
+      case Some(obj: OldVersionOf[_]) =>
+        //println(s"Found Old version: $obj")
+        upgrade[T](obj)
+      case o: Any =>
+        //println(s"Found something else: $o")
+        None
     }
-
-    hm.put(reader.vid, reader)
   }
-
-  def get (cls: String, vid: Double): Option[ReadsJSON[_]] = {
-    println(s"registry.get($cls) -> ${registry.get(cls)}")
-    for {
-      hm <- registry.get(cls)
-      reader <- hm.get(vid)
-    } yield reader
-  }
-
-  override def toString: String = this.registry.toString()
 }

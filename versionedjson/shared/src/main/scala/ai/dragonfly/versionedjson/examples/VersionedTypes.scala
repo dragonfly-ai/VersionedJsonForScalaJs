@@ -6,17 +6,20 @@ import ai.dragonfly.versionedjson._
 object Foo extends ReadsVersionedJSON[Foo] {
   override val vid: Double = 0.3
 
+//  println(this.getClass)
+//  override implicit lazy val tag: ClassTag[Foo] = scala.reflect.ClassTag[Foo](Foo(0, 0, 0, 0, false).getClass)
+
   override val oldVersions: Array[ReadsStaleJSON[_]] = Array[ReadsStaleJSON[_]](
     Foo$0_1,
     Foo$0_2,
   )
 
-  override def fromJSON(rawJSON: String): Option[Foo] = {
-    val jsonObj: ujson.Obj = ujson.read(rawJSON).obj
-    for {
-      i <- jsonObj("i").numOpt; l <- jsonObj("l").strOpt; f <- jsonObj("f").numOpt; d <- jsonObj("d").numOpt; b <- jsonObj("b").boolOpt
-    } yield Foo(i.toInt, l.toLong, f.toFloat, d, b)
-  }
+  override def fromJSON(rawJSON: String): Option[Foo] = fromObj(ujson.read(rawJSON).obj)
+
+  def fromObj(jsonObj: ujson.Obj): Option[Foo] = for {
+    i <- jsonObj("i").numOpt; l <- jsonObj("l").strOpt; f <- jsonObj("f").numOpt; d <- jsonObj("d").numOpt; b <- jsonObj("b").boolOpt
+  } yield new Foo(i.toInt, l.toLong, f.toFloat, d, b)
+
 }
 
 /** Foo exemplifies a current version, 0.3, of a versioned case class.
@@ -44,7 +47,10 @@ object Foo extends ReadsVersionedJSON[Foo] {
 
 case class Foo( i: Int, l: Long, f: Float, d: Double, b: Boolean ) extends WritesVersionedJson {
   override val vid: Double = Foo.vid
-  override def toJSON: String = ujson.Obj("i" -> i, "l" -> l, "f" -> f, "d" -> d, "b" -> b).toString()
+  override def toJSON: String = toObj.render()
+
+  def toObj: ujson.Obj = ujson.Obj("i" -> i, "l" -> l, "f" -> f, "d" -> d, "b" -> b)
+  def toVersionedObj: ujson.Obj = VersionedObj(this, toObj)
 }
 
 object Foo$0_1 extends ReadsStaleJSON[Foo$0_1] {
@@ -101,18 +107,31 @@ object Foo$0_2 extends ReadsStaleJSON[Foo$0_2] {
  */
 
 case class Foo$0_2(s: String, i: Int, l: Long, f: Float, d: Double, b: Boolean) extends OldVersionOf[Foo] {
-  override def upgrade: Some[Foo] = Some( Foo(i, l, f, d, b) )
-}
-
-/*
-case class Bar(m: mutable.HashMap[Sn0wflake, Foo], a: Array[Foo]) extends WritesVersionedJson {
-  override val vid: Double = Bar.vid
-  override def toJSON: String = Versioned.toJSON(this)(write(this))
+  override def upgrade: Some[Foo] = Some( new Foo(i, l, f, d, b) )
 }
 
 object Bar extends ReadsVersionedJSON[Bar] {
   override val vid: Double = 0.1
   override val oldVersions:Array[ReadsStaleJSON[_]] = Array[ReadsStaleJSON[_]]()
-  implicit val rw: RW[Bar] = macroRW
+
+  override def fromJSON(rawJSON: String): Option[Bar] = fromObj(ujson.read(rawJSON).obj)
+
+  def fromObj(jsonObj: ujson.Obj): Option[Bar] = for {
+    foo <- VersionedJSON[Foo](jsonObj("foo").obj.render())
+  } yield Bar(foo)
 }
-*/
+
+/*
+ *  Bar demonstrates a way to handle nested Versioned objects.
+ */
+
+case class Bar(foo: Foo) extends WritesVersionedJson {
+  override val vid: Double = Bar.vid
+  override def toJSON: String = toObj.toString()
+
+  def toObj: ujson.Obj = ujson.Obj("foo" -> foo.toVersionedObj)
+}
+
+object VersionedObj {
+  def apply(v: WritesVersionedJson, obj: ujson.Obj): ujson.Obj = ujson.Obj("#vid" -> v.vid, "#cls" -> v.cls, "#obj" -> obj)
+}

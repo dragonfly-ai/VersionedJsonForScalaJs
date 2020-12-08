@@ -1,28 +1,23 @@
 package ai.dragonfly.versionedjson
 
+import ai.dragonfly.versionedjson.native
+import native.Versioned
+
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
 /**
-  * Traits for classes and companion objects
-  */
-
-trait Versioned {
-  val vid: Double
-  val cls: String = this.getClass.getName
-}
-
-/**
   * traits for classes
   */
-
 trait WritesVersionedJson extends Versioned {
   def toJSON: String
   def toVersionedJSON: String = VersionedJSON(this)(toJSON)
+  override val cls: String = this.getClass.getName
 }
 
 trait OldVersionOf[T] extends Versioned {
   val vid: Double = VersionedJSON.getVersionIdFromClassName(this.getClass.getName)
+  override val cls: String = this.getClass.getName
   def upgrade: Option[T]
 }
 
@@ -31,38 +26,37 @@ trait OldVersionOf[T] extends Versioned {
   * traits for companion objects
   */
 
-/*
-Internal use only.
- */
 sealed trait ReadsJSON[T <: Versioned] extends Versioned {
   val cls: String
-  implicit val tag: ClassTag[T] = ClassTag(this.getClass)
   def fromJSON(rawJSON: String): Option[T]
-  // fromJSON(rawJSON: String): Option[T] = VersionedJSON.fromJSON[T](rawJSON)
+
+  implicit val tag: ClassTag[T] = native.ClassTag[T](this.getClass.getName.split("\\$")(0))
 }
 
-/*
+/**
   Meant only for the current version of the class.
  */
 
 trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
-  override val cls: String = {
-    val temp = this.getClass.getName
-    temp.substring(0, temp.length - 1)
-  }
+  override lazy val cls: String = tag.toString()
+
   val oldVersions: Array[ReadsStaleJSON[_]]
-  def fromVersionedJSON: String => Option[T] = { VersionedJSON.Readers(this); (rjsn:String) => VersionedJSON[T](rjsn) }
+
+  lazy val fromVersionedJSON: String => Option[T] = {
+    VersionedJSON.Readers(this)  // only register readers the first time this method is called.
+    (rawJSON:String) => VersionedJSON[T](rawJSON)
+  }
 }
 
-/*
+/**
   Only intended for past versions of classes.
  */
 trait ReadsStaleJSON[T <: Versioned] extends ReadsJSON[T] {
   override val vid: Double = VersionedJSON.getVersionIdFromClassName(this.getClass.getName)
 }
 
-/*
-  Versioned JSON serialization registry
+/**
+  VersionedJSON serialization registry
 */
 
 object VersionedJSON {
@@ -73,7 +67,7 @@ object VersionedJSON {
     o.upgrade match {
       case Some(ov: OldVersionOf[_]) => upgrade(ov)
       case Some(nv: T) => Some(nv)
-      case _ => None
+      case uhoh: Any => throw UpgradeFailure(s"$tag upgrade failure.  Lost the upgrade path after upgrading $o to $uhoh.")
     }
   }
 
@@ -92,7 +86,6 @@ object VersionedJSON {
     }
 
     def get (cls: String, vid: Double): Option[ReadsJSON[_]] = {
-      //println(s"registry.get($cls) -> ${registry.get(cls)}")
       for {
         hm <- registry.get(cls)
         reader <- hm.get(vid)
@@ -123,28 +116,22 @@ object VersionedJSON {
     val cls = wrapper("#cls").str
     val vid = wrapper("#vid").num
     val rdrOption = VersionedJSON.Readers.get(cls, vid)
-    //println(s"cls = $cls vid = $vid rdrOption = $rdrOption")
     rdrOption match {
-      case Some(rdr: ReadsJSON[Versioned]) =>
-        //println(s"found valid reader: $rdr")
-        rdr.fromJSON(wrapper("#obj").toString()) // may parse payload json twice.
-      case _ =>
-        System.out.println(s"VersionedJSON.Reader: Unregistered Class: $cls");
-        None
+      case Some(rdr: ReadsJSON[_]) => rdr.fromJSON(wrapper("#obj").toString())
+      case _ => throw UnknownReader(s"VersionedJSON.Reader: Unregistered Class: $cls")
     }
   }
 
   def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = {
     unwrap(rawJSON) match {
-      case Some(obj: WritesVersionedJson) =>
-        //println(s"Found Current version: $obj")
-        Some(obj.asInstanceOf[T])
-      case Some(obj: OldVersionOf[_]) =>
-        //println(s"Found Old version: $obj")
-        upgrade[T](obj)
-      case o: Any =>
-        //println(s"Found something else: $o")
-        None
+      case Some(obj: WritesVersionedJson) => Some(obj.asInstanceOf[T])
+      case Some(obj: OldVersionOf[_]) => upgrade[T](obj)
+      case o: Any => throw UnknownJSON(s"Can't deserialize unknown version of$tag: $o")
     }
   }
 }
+
+case class UnknownJSON(msg: String) extends Exception(msg)
+case class UnknownReader(msg: String) extends Exception(msg)
+case class UpgradeFailure(msg: String) extends Exception(msg)
+case class UnknownVersionedClass(msg: String) extends Exception(msg)

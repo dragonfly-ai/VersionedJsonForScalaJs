@@ -23,7 +23,10 @@ lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).
   jvmSettings(
     // Add JVM-specific settings here
     //mainClass in (Compile, run) := Some("ai.dragonfly.versionedjson.examples.Test")
-    libraryDependencies += "org.scala-js" %% "scalajs-stubs" % "1.0.0" % "provided",
+    libraryDependencies ++= Seq(
+      "org.scala-js" %% "scalajs-stubs" % "1.0.0",
+      "org.scala-lang" % "scala-reflect" % "2.13.3"
+    )
   ).
   jsSettings(
     // Add JS-specific settings here

@@ -18,7 +18,7 @@ object Test extends App {
 //  println(s"Initializing VersionedJsonReaderRegistry: ${VersionedJSON.Readers(Foo)}")
 
   val foo = new Foo(Integer.MAX_VALUE, Long.MaxValue, Float.MaxValue, Double.MaxValue, true)
-  println(s"Initialized foo, the current version of ${Foo.cls}: $foo")
+  println(s"Initialized foo, the current version of ${Foo.version.cls}: $foo")
 
   println(s"\n\nRead/Write plain JSON:")
   val json: String = foo.toJSON
@@ -52,7 +52,7 @@ object Test extends App {
 
   println(s"\n\nRead/Write Nested Versioned Classes:")
   val bar: Bar = Bar(foo)
-  println(s"\tInitialized bar, the current version of ${Bar.cls}: $bar")
+  println(s"\tInitialized bar, the current version of ${Bar.version.cls}: $bar")
   val barJSON = bar.toJSON
   println(s"\tbar.toJSON => $barJSON")
   println(s"\tBar.fromJSON(bar.toJSON) => ${Bar.fromJSON(barJSON)}")
@@ -68,4 +68,21 @@ object Test extends App {
   println(s"\tCurrent Bar with Foo 0.3: $barjson")
   println(s"\tBar.fromVersionedJSON(bar(foo0_3json)) => ${Bar.fromVersionedJSON(barjson)}")
 
+  // Wubba
+  println(s"\n\nRead/Write Nested Versioned Classes with Nested Collections of Versioned Classes:")
+  val wubba: Wubba = Wubba(
+    Seq(
+      bar,
+      Bar(Foo(3, System.currentTimeMillis(), 3.14159f, Math.PI, true)),
+      Bar(Foo(42, 424242424L, 42.0f, 42.0, false)),
+      Bar(Foo(69, 69696969L, 6.9f, 68.9999999, true))
+    )
+  )
+  println(s"\tInitialized wubba, the current version of ${Wubba.version.cls}: $wubba")
+  val wubbaJSON = wubba.toJSON
+  println(s"\twubba.toJSON => $wubbaJSON")
+  println(s"\tWubba.fromJSON(wubba.toJSON) => ${Wubba.fromJSON(wubbaJSON)}")
+  val wubbaVersionedJSON = wubba.toVersionedJSON
+  println(s"\twubba.toVersionedJSON => ${wubbaVersionedJSON}")
+  println(s"\tWubba.fromVersionedJSON(wubba.toJSON) => ${Wubba.fromVersionedJSON(wubbaVersionedJSON)}")
 }

@@ -5,25 +5,20 @@ import ai.dragonfly.versionedjson.VersionedJSON
 object Test extends App {
 
   // Past versions of Foo serializations:
-  val foo0_1json = """{ "#cls": "com.whatever.Foo", "#vid": 0.1, "#obj": {"s": "foo", "f": 3.4028235E38, "i": 2147483647, "l": "9223372036854775807", "d": 1.7976931348623157E308}}"""
-  val foo0_2json = """{"#obj": {"s": "foo", "f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}, "#cls": "com.whatever.Foo", "#vid": 0.2}"""
-  val foo0_3json = """{"#obj": {"f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}, "#cls": "ai.dragonfly.versionedjson.examples.Foo", "#vid": 0.3}"""
+  val foo0_1json = """{"#v":["com.whatever.Foo:0.1"], "#o":[0,{"s": "foo", "f": 3.4028235E38, "i": 2147483647, "l": "9223372036854775807", "d": 1.7976931348623157E308}]}"""
+  val foo0_2json = """{"#v":["com.whatever.Foo:0.2"], "#o":[0,{"s": "foo", "f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}]}"""
+  val foo0_3json = """{"#v":["ai.dragonfly.versionedjson.examples.Foo:0.3"], "#o":[0,{"f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}]}"""
 
   // Versions of Bar
-  val barjson = s"""{"#vid":0.1,"#cls":"ai.dragonfly.versionedjson.examples.Bar","#obj":{"foo":$foo0_3json}}"""
-  val barFoo0_1json = s"""{"#vid":0.1,"#cls":"ai.dragonfly.versionedjson.examples.Bar","#obj":{"foo":$foo0_1json}}"""
-  val barFoo0_2json = s"""{"#vid":0.1,"#cls":"ai.dragonfly.versionedjson.examples.Bar","#obj":{"foo":$foo0_2json}}"""
+  val barjson =       s"""{"#v":["ai.dragonfly.versionedjson.examples.Bar:0.1","ai.dragonfly.versionedjson.examples.Foo:0.3"], "#o":[0,{"foo":[1,{"f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}]}]}"""
+  val barFoo0_1json = s"""{"#v":["ai.dragonfly.versionedjson.examples.Bar:0.1","com.whatever.Foo:0.1"], "#o":[0,{"foo":[1,{"s": "foo", "f": 3.4028235E38, "i": 2147483647, "l": "9223372036854775807", "d": 1.7976931348623157E308}]}]}"""
+  val barFoo0_2json = s"""{"#v":["ai.dragonfly.versionedjson.examples.Bar:0.1","com.whatever.Foo:0.2"], "#o":[0,{"foo":[1,{"s": "foo", "f": 3.4028235E38, "i": 2147483647, "b": true, "l": "9223372036854775807", "d": 1.7976931348623157E308}]}]}"""
 
 //  println(s"Registry blank: ${VersionedJSON.Readers}")
 //  println(s"Initializing VersionedJsonReaderRegistry: ${VersionedJSON.Readers(Foo)}")
 
   val foo = new Foo(Integer.MAX_VALUE, Long.MaxValue, Float.MaxValue, Double.MaxValue, true)
   println(s"Initialized foo, the current version of ${Foo.version.cls}: $foo")
-
-  println(s"\n\nRead/Write plain JSON:")
-  val json: String = foo.toJSON
-  println(s"foo.toJSON => $json")
-  println(s"Foo.fromJSON($json) => ${Foo.fromJSON(json)}")
 
   val versionedJSON: String = foo.toVersionedJSON
   println(s"\n\nRead/Write Versioned JSON:")
@@ -53,9 +48,7 @@ object Test extends App {
   println(s"\n\nRead/Write Nested Versioned Classes:")
   val bar: Bar = Bar(foo)
   println(s"\tInitialized bar, the current version of ${Bar.version.cls}: $bar")
-  val barJSON = bar.toJSON
-  println(s"\tbar.toJSON => $barJSON")
-  println(s"\tBar.fromJSON(bar.toJSON) => ${Bar.fromJSON(barJSON)}")
+
   val barVersionedJSON = bar.toVersionedJSON
   println(s"\tbar.toVersionedJSON => ${barVersionedJSON}")
   println(s"\tBar.fromVersionedJSON(bar.toJSON) => ${Bar.fromVersionedJSON(barVersionedJSON)}")
@@ -79,9 +72,6 @@ object Test extends App {
     )
   )
   println(s"\tInitialized wubba, the current version of ${Wubba.version.cls}: $wubba")
-  val wubbaJSON = wubba.toJSON
-  println(s"\twubba.toJSON => $wubbaJSON")
-  println(s"\tWubba.fromJSON(wubba.toJSON) => ${Wubba.fromJSON(wubbaJSON)}")
   val wubbaVersionedJSON = wubba.toVersionedJSON
   println(s"\twubba.toVersionedJSON => ${wubbaVersionedJSON}")
   println(s"\tWubba.fromVersionedJSON(wubba.toJSON) => ${Wubba.fromVersionedJSON(wubbaVersionedJSON)}")

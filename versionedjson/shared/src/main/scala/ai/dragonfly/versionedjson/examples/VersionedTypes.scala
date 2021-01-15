@@ -4,17 +4,19 @@ import ai.dragonfly.versionedjson.VersionedJSON.Cargo
 import ai.dragonfly.versionedjson._
 import ai.dragonfly.versionedjson.Versioned._
 
+import scala.+:
+
 object Foo extends ReadsVersionedJSON[Foo] {
 
   // From the Reader perspective, we need only specify the version id:
   override val version: Version = 0.3
 
   override val oldVersions: Array[ReadsStaleJSON[_]] = Array[ReadsStaleJSON[_]](
-    Foo$0_1,
     Foo$0_2,
+    Foo$0_1
   )
 
-  override def fromJSON(rawJSON: String): Option[Foo] = fromObj(ujson.read(rawJSON).obj)
+  override def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Foo] = fromObj(ujson.read(rawJSON).obj)
 
   def fromObj(jsonObj: ujson.Obj): Option[Foo] = for {
     i <- jsonObj("i").numOpt; l <- jsonObj("l").strOpt; f <- jsonObj("f").numOpt; d <- jsonObj("d").numOpt; b <- jsonObj("b").boolOpt
@@ -46,10 +48,7 @@ object Foo extends ReadsVersionedJSON[Foo] {
  */
 
 case class Foo( i: Int, l: Long, f: Float, d: Double, b: Boolean ) extends WritesVersionedJSON[Foo] {
-  override def toJSON: String = toObj.render()
-
-  def toObj: ujson.Obj = ujson.Obj("i" -> i, "l" -> l, "f" -> f, "d" -> d, "b" -> b)
-  def toVersionedObj: ujson.Obj = VersionedObj(this, toObj)
+  override def toJSON(implicit versionIndex:VersionIndex): String = ujson.Obj("i" -> i, "l" -> l, "f" -> f, "d" -> d, "b" -> b).render()
 }
 
 /**
@@ -59,42 +58,10 @@ case class Foo( i: Int, l: Long, f: Float, d: Double, b: Boolean ) extends Write
  * Because class names can not have '.' in them, we substitute the underscore '_'.
  */
 
-object Foo$0_1 extends ReadsStaleJSON[Foo$0_1] {
-  // some class names get refactored from one package to another, or renamed between versions.
-  // For Old Version readers we need only specify the old fully qualified class name.  The version id gets inferred from
-  // the class name.
-
-  override val version: Version = "com.whatever.Foo"
-
-  override def fromJSON(rawJSON: String): Option[Foo$0_1] = {
-    val jsonObj: ujson.Obj = ujson.read(rawJSON).obj
-    for {
-      s <- jsonObj("s").strOpt; i <- jsonObj("i").numOpt; l <- jsonObj("l").strOpt; f <- jsonObj("f").numOpt; d <- jsonObj("d").numOpt
-    } yield Foo$0_1(s, i.toInt, l.toLong, f.toFloat, d)
-  }
-}
-
-
-/** Foo$0_1 exemplifies the first version, 0.1, of the Foo case class.
- * old versions of Foo (and other versioned classes) can not write any json.
- * Instead, they contain upgrade methods that point through the version chain
- * until they reach the current version.
- *  @constructor create a Foo instance from various primitive types.
- *  @param s a String primitive type
- *  @param i an Int primitive type
- *  @param l a Long primitive type
- *  @param f a Float primitive type
- *  @param d a Double primitive type
- */
-
-case class Foo$0_1(s: String, i: Int, l: Long, f: Float, d: Double) extends OldVersionOf[Foo$0_2] {
-  override def upgrade: Some[Foo$0_2] = Some( Foo$0_2( s, i, l, f, d, false ) )
-}
-
 object Foo$0_2 extends ReadsStaleJSON[Foo$0_2] {
   override val version: Version = "com.whatever.Foo"
 
-  override def fromJSON(rawJSON: String): Option[Foo$0_2] = {
+  override def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Foo$0_2] = {
     val jsonObj: ujson.Obj = ujson.read(rawJSON).obj
     for {
       s <- jsonObj("s").strOpt; i <- jsonObj("i").numOpt; l <- jsonObj("l").strOpt; f <- jsonObj("f").numOpt; d <- jsonObj("d").numOpt; b <- jsonObj("b").boolOpt
@@ -121,6 +88,37 @@ case class Foo$0_2(s: String, i: Int, l: Long, f: Float, d: Double, b: Boolean) 
   override def upgrade: Some[Foo] = Some( Foo(i, l, f, d, b) )
 }
 
+object Foo$0_1 extends ReadsStaleJSON[Foo$0_1] {
+  // some class names get refactored from one package to another, or renamed between versions.
+  // For Old Version readers we need only specify the old fully qualified class name.  The version id gets inferred from
+  // the class name.
+
+  override val version: Version = "com.whatever.Foo"
+
+  override def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Foo$0_1] = {
+    val jsonObj: ujson.Obj = ujson.read(rawJSON).obj
+    for {
+      s <- jsonObj("s").strOpt; i <- jsonObj("i").numOpt; l <- jsonObj("l").strOpt; f <- jsonObj("f").numOpt; d <- jsonObj("d").numOpt
+    } yield Foo$0_1(s, i.toInt, l.toLong, f.toFloat, d)
+  }
+}
+
+/** Foo$0_1 exemplifies the first version, 0.1, of the Foo case class.
+ * old versions of Foo (and other versioned classes) can not write any json.
+ * Instead, they contain upgrade methods that point through the version chain
+ * until they reach the current version.
+ *  @constructor create a Foo instance from various primitive types.
+ *  @param s a String primitive type
+ *  @param i an Int primitive type
+ *  @param l a Long primitive type
+ *  @param f a Float primitive type
+ *  @param d a Double primitive type
+ */
+
+case class Foo$0_1(s: String, i: Int, l: Long, f: Float, d: Double) extends OldVersionOf[Foo$0_2] {
+  override def upgrade: Some[Foo$0_2] = Some( Foo$0_2( s, i, l, f, d, false ) )
+}
+
 /**
  *  Bar demonstrates a way to handle nested Versioned objects.
  */
@@ -129,18 +127,16 @@ object Bar extends ReadsVersionedJSON[Bar] {
   override val version: Version = 0.1
   override val oldVersions:Array[ReadsStaleJSON[_]] = Array[ReadsStaleJSON[_]]()
 
-  override def fromJSON(rawJSON: String): Option[Bar] = fromObj(ujson.read(rawJSON).obj)
-
-  def fromObj(jsonObj: ujson.Obj): Option[Bar] = for {
-    foo <- VersionedJSON[Foo](jsonObj("foo").obj.render())
-  } yield Bar(foo)
+  override def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Bar] = {
+    for {
+      obj <- ujson.read(rawJSON).objOpt
+      foo <- VersionedElement.fromJSON(obj("foo").render())
+    } yield Bar(foo.asInstanceOf[Foo])
+  }
 }
 
 case class Bar(foo: Foo) extends WritesVersionedJSON[Bar] {
-  override def toJSON: String = toObj.toString()
-
-  def toObj: ujson.Obj = ujson.Obj("foo" -> foo.toVersionedObj)
-  def toVersionedObj: ujson.Obj = VersionedObj(this, toObj)
+  override def toJSON(implicit versionIndex:VersionIndex): String = s"""{"foo":${foo.toVersionedJSON}}"""
 }
 
 /**
@@ -153,29 +149,22 @@ object Wubba extends ReadsVersionedJSON[Wubba] {
 
   override val oldVersions:Array[ReadsStaleJSON[_]] = Array[ReadsStaleJSON[_]]()
 
-  override def fromJSON(rawJSON: String): Option[Wubba] = fromObj(ujson.read(rawJSON).obj)
-
-  def fromObj(jsonObj: ujson.Obj): Option[Wubba] = for {
-    ar <- jsonObj("bars").objOpt
-    barsArr <- VersionedArray.fromObj(ar)
-  } yield {
-    var bars: Seq[Bar] = Seq[Bar]()
-    for (v <- barsArr) bars = bars :+ v.asInstanceOf[Bar]
-    Wubba(bars)
+  override def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Wubba] = {
+    for {
+      obj <- ujson.read(rawJSON).objOpt
+      barsObj <- obj("bars").objOpt
+    } yield Wubba({
+      val barsArr = VersionedArray.fromJSON(barsObj.render())
+      var bars: Seq[Bar] = Seq[Bar]()
+      for (b <- barsArr) bars = bars.+:(b.asInstanceOf[Bar])
+      bars
+    })
   }
+
 }
 
 case class Wubba(bars: Seq[Bar]) extends WritesVersionedJSON[Wubba] {
 
-  override def toJSON: String = s"""{"bars":${VersionedArray.toJSON(bars:_*)}}"""
+  override def toJSON(implicit versionIndex:VersionIndex): String = s"""{"bars":${VersionedArray.toJSON(bars:_*)}}"""
 
 }
-
-/**
- * Implementation specific Utility methods:
- */
-
-object VersionedObj {
-  def apply(v: WritesVersionedJSON[_], obj: ujson.Obj): ujson.Obj = ujson.Obj("#vid" -> v.version.vid, "#cls" -> v.version.cls, "#obj" -> obj)
-}
-

@@ -62,7 +62,7 @@ object Test extends App {
   println(s"\tBar.fromVersionedJSON(bar(foo0_3json)) => ${Bar.fromVersionedJSON(barjson)}")
 
   // Wubba
-  println(s"\n\nRead/Write Nested Versioned Classes with Nested Collections of Versioned Classes:")
+  println(s"\n\nRead/Write Nested Versioned Classes with Nested Collections of Uniformly typed Versioned Classes:")
   val wubba: Wubba = Wubba(
     Seq(
       bar,
@@ -75,4 +75,21 @@ object Test extends App {
   val wubbaVersionedJSON = wubba.toVersionedJSON
   println(s"\twubba.toVersionedJSON => ${wubbaVersionedJSON}")
   println(s"\tWubba.fromVersionedJSON(wubba.toJSON) => ${Wubba.fromVersionedJSON(wubbaVersionedJSON)}")
+
+
+  // Woo
+  println(s"\n\nRead/Write Nested Versioned Classes with Nested Collections of Diversely typed Versioned Classes:")
+  val woo: Woo = Woo(
+    Seq(
+      Triangle(new Point2D(0.0, 10.0), new Point2D(-10.0, -5.0), new Point2D(7.5, -3.0), new Point2D(0.0, 0.0), new Color(87, 2, 0)),
+      Square(Math.PI, new Point2D(0.0, 0.0), new Color(87, 2, 0)),
+      Rectangle(2*Math.PI, Math.E, new Point2D(0.0, 0.0), new Color(87, 2, 0)),
+      Circle(Math.PI, new Point2D(0.0, 0.0), new Color(87, 2, 0))
+    )
+  )
+  println(s"\tInitialized woo, the current version of ${Woo.version.cls}: $woo")
+  val wooVersionedJSON = woo.toVersionedJSON
+  println(s"\twoo.toVersionedJSON => ${wooVersionedJSON}")
+  println(s"\tWoo.fromVersionedJSON(woo.toJSON) => ${Woo.fromVersionedJSON(wooVersionedJSON)}")
+
 }

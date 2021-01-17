@@ -1,10 +1,7 @@
 package ai.dragonfly.versionedjson.examples
 
-import ai.dragonfly.versionedjson.VersionedJSON.Cargo
 import ai.dragonfly.versionedjson._
 import ai.dragonfly.versionedjson.Versioned._
-
-import scala.collection.immutable.TreeMap
 
 object Foo extends ReadsVersionedJSON[Foo] {
 
@@ -129,8 +126,8 @@ object Bar extends ReadsVersionedJSON[Bar] {
 
   override def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Bar] = for {
     obj <- ujson.read(rawJSON).objOpt
-    foo <- VersionedElement.fromJSON(obj("foo").render())
-  } yield Bar(foo.asInstanceOf[Foo])
+    foo <- Foo.fromVersionedJSON(obj("foo").render())
+  } yield Bar(foo)
 }
 
 case class Bar(foo: Foo) extends WritesVersionedJSON[Bar] {
@@ -150,11 +147,7 @@ object Wubba extends ReadsVersionedJSON[Wubba] {
     obj <- ujson.read(rawJSON).objOpt
     barsObj <- obj("bars").objOpt
     barsArr <- VersionedArray.fromJSON(barsObj.render())
-  } yield Wubba({
-    var bars: Seq[Bar] = Seq[Bar]()
-    for (b <- barsArr) bars = bars.+:(b.asInstanceOf[Bar])
-    bars
-  })
+  } yield Wubba(for (b <- barsArr) yield b.asInstanceOf[Bar])
 }
 
 case class Wubba(bars: Seq[Bar]) extends WritesVersionedJSON[Wubba] {
@@ -172,11 +165,7 @@ object Woo extends ReadsVersionedJSON[Woo] {
     obj <- ujson.read(rawJSON).objOpt
     shapesObj <- obj("shapes").objOpt
     shapesArr <- VersionedArray.fromJSON(shapesObj.render())
-  } yield Woo({
-    var s: Seq[Shape] = Seq[Shape]()
-    for (b <- shapesArr) s = s.+:(b.asInstanceOf[Shape])
-    s
-  })
+  } yield Woo(for (b <- shapesArr) yield b.asInstanceOf[Shape])
 }
 
 case class Woo(shapes: Seq[Shape]) extends WritesVersionedJSON[Woo] {
@@ -213,6 +202,7 @@ case class Color(red: Int, green: Int, blue: Int) extends WritesVersionedJSON[Co
   override def toJSON(implicit versionIndex: VersionIndex): String = s"""{"r":$red,"g":$green,"b":$blue}"""
 }
 
+
 trait Shape extends WritesVersionedJSON[Shape] {
   val points: Array[Point2D]
   val position: Point2D
@@ -226,9 +216,9 @@ object Triangle extends ReadsVersionedJSON[Triangle] {
     obj <- ujson.read(rawJSON).objOpt
     points <- obj("points").objOpt
     arr <- VersionedArray.fromJSON(points.render())
-    position <- VersionedElement.fromJSON(obj("position").render())
-    color <- VersionedElement.fromJSON(obj("color").render())
-  } yield Triangle(arr(0).asInstanceOf[Point2D], arr(1).asInstanceOf[Point2D], arr(2).asInstanceOf[Point2D], position.asInstanceOf[Point2D], color.asInstanceOf[Color])
+    position <- Point2D.fromVersionedJSON(obj("position").render())
+    color <- Color.fromVersionedJSON(obj("color").render())
+  } yield Triangle(arr(0).asInstanceOf[Point2D], arr(1).asInstanceOf[Point2D], arr(2).asInstanceOf[Point2D], position, color)
 }
 
 case class Triangle(p1: Point2D, p2: Point2D, p3: Point2D, override val position: Point2D = Point2D(), override val color:Color) extends Shape {
@@ -244,9 +234,9 @@ object Rectangle extends ReadsVersionedJSON[Rectangle] {
     obj <- ujson.read(rawJSON).objOpt
     width <- obj("w").numOpt
     height <- obj("h").numOpt
-    position <- VersionedElement.fromJSON(obj("position").render())
-    color <- VersionedElement.fromJSON(obj("color").render())
-  } yield Rectangle(width, height, position.asInstanceOf[Point2D], color.asInstanceOf[Color])
+    position <- Point2D.fromVersionedJSON(obj("position").render())
+    color <- Color.fromVersionedJSON(obj("color").render())
+  } yield Rectangle(width, height, position, color)
 }
 
 case class Rectangle(width: Double, height: Double, override val position: Point2D = Point2D(), override val color:Color) extends Shape {
@@ -260,9 +250,9 @@ object Square extends ReadsVersionedJSON[Square] {
   override def fromJSON(rawJSON: String)(implicit versions: Array[Version]): Option[Square] = for {
     obj <- ujson.read(rawJSON).objOpt
     length <- obj("l").numOpt
-    position <- VersionedElement.fromJSON(obj("position").render())
-    color <- VersionedElement.fromJSON(obj("color").render())
-  } yield Square(length, position.asInstanceOf[Point2D], color.asInstanceOf[Color])
+    position <- Point2D.fromVersionedJSON(obj("position").render())
+    color <- Color.fromVersionedJSON(obj("color").render())
+  } yield Square(length, position, color)
 }
 
 case class Square(length: Double, override val position: Point2D = Point2D(), override val color:Color) extends Shape {
@@ -280,9 +270,9 @@ object Circle extends ReadsVersionedJSON[Circle] {
   override def fromJSON(rawJSON: String)(implicit versions: Array[Version]): Option[Circle] = for {
     obj <- ujson.read(rawJSON).objOpt
     radius <- obj("r").numOpt
-    position <- VersionedElement.fromJSON(obj("position").render())
-    color <- VersionedElement.fromJSON(obj("color").render())
-  } yield Circle(radius, position.asInstanceOf[Point2D], color.asInstanceOf[Color])
+    position <- Point2D.fromVersionedJSON(obj("position").render())
+    color <- Color.fromVersionedJSON(obj("color").render())
+  } yield Circle(radius, position, color)
 }
 
 case class Circle(radius: Double, override val position: Point2D = Point2D(), override val color:Color) extends Shape {

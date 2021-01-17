@@ -38,11 +38,11 @@ object LoadReader {
       Reflect.lookupLoadableModuleClass(companionObjectName) match {
         case Some(lmc: LoadableModuleClass) =>
           lmc.loadModule() match {
-            case rvj: ReadsVersionedJSON[T] =>
+            case rvj: ReadsVersionedJSON[_] =>
               VersionedJSON.Readers(rvj)
               knownReaders.put(companionObjectName, rvj)
               rvj
-            case rsj: ReadsStaleJSON[T] =>
+            case rsj: ReadsStaleJSON[_] =>
               knownReaders.put(companionObjectName, rsj)
               rsj
           }

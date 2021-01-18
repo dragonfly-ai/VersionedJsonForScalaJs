@@ -28,6 +28,71 @@ object Versioned {
 
   // only for stale version readers
   implicit def clsToVersion(cls:String)(implicit tag: ClassTag[_]): Version = Version(cls, parseVid(tag))
+
+  import VersionedJSON.Cargo._
+
+  object UniformArray {
+    def toJSON(elements: WritesVersionedJSON[_ <: Versioned]*)(implicit versionIndex:VersionIndex): String = {
+      if (elements.length < 1) s"""{"$au":[]}""" else {
+        val sb: mutable.StringBuilder = new StringBuilder(s"""{"$au":[${versionIndex(elements.head.version)}""")
+        for (e <- elements) sb.append(s", ${e.toJSON}")
+        sb.append("]}").toString()
+      }
+    }
+
+    def fromJSON[T <: Versioned](rawJSON: String)(implicit readers:Array[ReadsJSON[_]]): Option[Array[T]] = for {
+      root <- ujson.read(rawJSON).objOpt
+      uniformArray <- root(s"$au").arrOpt
+      readerID <- uniformArray(0).numOpt
+    } yield {
+      val reader:ReadsJSON[_] = readers(readerID.toInt)
+      implicit val tag: ClassTag[T] = reader.tag.asInstanceOf[ClassTag[T]]
+      val valuesT = uniformArray.tail
+      val out: Array[T] = new Array[T](valuesT.length)
+      for (i <- valuesT.indices) out(i) = reader.fromJSON(valuesT(i).render()).get.asInstanceOf[T]
+      out
+    }
+  }
+
+  object DiverseArray {
+    import VersionedJSON.Cargo._
+    def toJSON(elements: WritesVersionedJSON[_ <: Versioned]*)(implicit versionIndex:VersionIndex): String = {
+      if (elements.length < 1) s"""{"$ad":[]}""" else { // diverse Array
+        val sb: mutable.StringBuilder = new StringBuilder(s"""{"$ad":[""")
+        sb.append(Element.toJSON(elements.head))
+        for (e <- elements.tail) sb.append(s", ${Element.toJSON(e)}")
+        sb.append("]}").toString()
+      }
+    }
+
+    def fromJSON(rawJSON: String)(implicit readers:Array[ReadsJSON[_]]): Option[Array[VersionedClass[_]]] = for {
+      root <- ujson.read(rawJSON).objOpt
+      diverseArray <- root(s"$ad").arrOpt
+    } yield {
+      val out: Array[VersionedClass[_]] = new Array[VersionedClass[_]](diverseArray.length)
+      for (i <- diverseArray.indices) out(i) = Element.fromJSON[VersionedClass[_]](diverseArray(i).render()).get
+      out
+    }
+  }
+
+
+  object Element {
+    def toJSON(element: WritesVersionedJSON[_ <: Versioned])(implicit versionIndex:VersionIndex):String = s"""${element.toVersionedJSON}""" //s"""[${versionIndex(element.version)}, ${element.toVersionedJSON}]"""
+    def fromJSON[T <: Versioned](rawJSON: String)(implicit readers:Array[ReadsJSON[_]], tag: ClassTag[T]): Option[T] = {
+      for {
+        arr <- ujson.read(rawJSON).arrOpt
+        vid <- arr(0).numOpt
+      } yield {
+        val cargoJSON: String = arr(1).render()
+        val reader = readers(vid.toInt).asInstanceOf[ReadsJSON[T]]
+        reader.fromJSON(cargoJSON) match {
+          case Some(ov:OldVersionOf[_]) => VersionedJSON.upgradeToCurrentVersion[T](ov)
+          case Some(wvj: T) => wvj
+          case o: Any => throw UnknownJSON(reader.tag, cargoJSON)
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -80,7 +145,7 @@ trait OldVersionOf[T <: Versioned] extends VersionedClass[T] {
 
 sealed trait ReadsJSON[T <: Versioned] extends Versioned {
   implicit val tag: ClassTag[T] = Versioned.getTag[T](this)
-  def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[T]
+  def fromJSON(rawJSON: String)(implicit readers:Array[ReadsJSON[_]]): Option[T]
 }
 
 /**
@@ -89,9 +154,9 @@ sealed trait ReadsJSON[T <: Versioned] extends Versioned {
 
 trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
   val oldVersions: Array[ReadsStaleJSON[_]]
-  def fromVersionedJSON(rawJSON:String)(implicit versions:Array[Version] = null) : Option[T] = {
-    if (versions == null) VersionedJSON[T](rawJSON)
-    else VersionedElement.fromJSON[T](rawJSON)
+  def fromVersionedJSON(rawJSON:String)(implicit readers:Array[ReadsJSON[_]] = null) : Option[T] = {
+    if (readers == null) VersionedJSON[T](rawJSON)
+    else Versioned.Element.fromJSON[T](rawJSON)
   }
 }
 
@@ -107,19 +172,11 @@ object Version {
     val tokens = vString.split(":")
     Version(tokens(0), java.lang.Double.parseDouble(tokens(1)))
   }
-//
-//  def fromJSON(rawJSON: String): Option[Version] = {
-//    println(rawJSON)
-//    ujson.read(rawJSON).strOpt match {
-//      case Some(s:String) => Some(parseVersionString(s))
-//      case _ => None
-//    }
-//  }
 
   def lookup(cls: String, vid: Double): Version = {
     VersionedJSON.Readers.get(cls, vid) match {
       case Some(_) => new Version(cls, vid)
-      case _ => throw UnknownReader(s"No VersionedJSON reader found for: Version($cls, $vid).  If it exists, try registering it with VersionedJSON.Readers.")
+      case _ => throw UnknownReader(Version(cls, vid))
     }
   }
 }
@@ -137,10 +194,15 @@ case class Version(cls: String, vid: Double) {
 }
 
 object VersionIndex {
-  def fromArr(arr:ArrayBuffer[ujson.Value]):Array[Version] = {
-    val versions:Array[Version] = new Array[Version](arr.length)
-    for (i <- arr.indices) versions(i) = Version.parseVersionString(arr(i).str)
-    versions
+  def fromArr(arr:ArrayBuffer[ujson.Value]):Array[ReadsJSON[_]] = {
+    val versionReaders:Array[ReadsJSON[_]] = new Array[ReadsJSON[_]](arr.length)
+    for (i <- arr.indices) {
+      val version = Version.parseVersionString(arr(i).str)
+      versionReaders(i) = VersionedJSON.Readers.get(version).getOrElse({
+        throw UnknownVersionedClass(version)
+      })
+    }
+    versionReaders
   }
 }
 
@@ -178,81 +240,6 @@ class VersionIndex {
   }
 }
 
-// This is only for arrays of versioned Objects.
-object VersionedArray {
-  import VersionedJSON.Cargo._
-  def toJSON(elements: WritesVersionedJSON[_ <: Versioned]*)(implicit versionIndex:VersionIndex): String = {
-    if (elements.length < 1) s"""{"$au":[]}""" else {
-      val versions: mutable.HashSet[Version] = mutable.HashSet[Version]()
-      for (e <- elements) versions.add(e.version)
-      if (versions.size == 1) { // uniform Array
-        val sb: mutable.StringBuilder = new StringBuilder(s"""{"$au":[${versionIndex(versions.head)},""")
-        sb.append(elements.head.toJSON)
-        for (e <- elements.tail) sb.append(s", ${e.toJSON}")
-        sb.append("]}").toString()
-      } else { // diverse Array
-        val sb: mutable.StringBuilder = new StringBuilder(s"""{"$ad":[""")
-        sb.append(VersionedElement.toJSON(elements.head))
-        for (e <- elements.tail) sb.append(s", ${VersionedElement.toJSON(e)}")
-        sb.append("]}").toString()
-      }
-    }
-  }
-
-  def fromJSON(rawJSON: String)(implicit versions:Array[Version]): Option[Array[VersionedClass[_]]] = {
-    val root = ujson.read(rawJSON).obj
-    if (root.contains(s"$ad")) {
-      val diverseArray: ArrayBuffer[ujson.Value] = root(s"$ad").arr
-      val out: Array[VersionedClass[_]] = new Array[VersionedClass[_]](diverseArray.length)
-      for (i <- diverseArray.indices) {
-        //println(s"VersionedArray.fromJSON($rawJSON)\n\t${diverseArray(i).render()}")
-        out(i) = VersionedElement.fromJSON[VersionedClass[_]](diverseArray(i).render()).get
-      }
-      Some(out)
-    } else {
-      val uniformArray:ArrayBuffer[ujson.Value] = root(s"$au").arr
-      val version = versions(uniformArray(0).num.toInt)
-      VersionedJSON.Readers.get(version) match {
-        case Some(reader: ReadsVersionedJSON[_]) =>
-          val out: Array[VersionedClass[_]] = new Array[VersionedClass[_]](uniformArray.length - 1)
-          for (i <- 1 until uniformArray.length) {
-            out(i-1) = reader.fromJSON(uniformArray(i).render()).get.asInstanceOf[VersionedClass[_]]
-          }
-          Some(out)
-        case _ => throw UnknownReader(s"Can't find reader for VersionedClass: $Version")
-      }
-    }
-  }
-}
-
-object VersionedElement {
-  def toJSON(element: WritesVersionedJSON[_ <: Versioned])(implicit versionIndex:VersionIndex):String = s"""${element.toVersionedJSON}""" //s"""[${versionIndex(element.version)}, ${element.toVersionedJSON}]"""
-  def fromJSON[T <: Versioned](rawJSON: String)(implicit versions:Array[Version], tag: ClassTag[T]): Option[T] = {
-    //println(s"VersionedElement.fromJSON($rawJSON)")
-    for {
-      arr <- ujson.read(rawJSON).arrOpt
-      vid <- arr(0).numOpt
-      reader <- VersionedJSON.Readers.get(versions(vid.toInt))
-      payload <- reader.fromJSON(arr(1).render())
-    } yield {
-       payload match {
-        case ov:OldVersionOf[_] => VersionedJSON.upgrade[T](ov).get
-        case wvj: T => wvj
-        case o: Any => throw UnknownVersionedClass(s"${reader.tag} read: $o which matches no known Versioned Class. ")
-      }
-    }
-  }
-
-//  {
-//    val obj: ujson.Obj = ujson.read(rawJSON).obj
-//    val version = versions(obj("i").num.toInt)
-//    VersionedJSON.Readers.get(version) match {
-//      case Some(reader) => reader.fromJSON(obj("e").render()).get.asInstanceOf[VersionedClass[_]]
-//      case _ => throw new UnknownReader(s"Can't find reader for VersionedClass: $Version")
-//    }
-//  }
-}
-
 
 /**
   VersionedJSON serialization registry
@@ -260,12 +247,12 @@ object VersionedElement {
 
 object VersionedJSON {
 
-  def upgrade[T <: Versioned](o: OldVersionOf[_]): Option[T] = {
+  def upgradeToCurrentVersion[T <: Versioned](o: OldVersionOf[_])(implicit tag: ClassTag[T]): T = {
     val ou = o.upgrade
     ou match {
-      case Some(ov: OldVersionOf[_]) => upgrade[T](ov)
-      case Some(nv: WritesVersionedJSON[_]) => Some(nv.asInstanceOf[T])
-      case _ => throw UpgradeFailure(s"Upgrade failure.  Lost the upgrade path after upgrading $o to $ou.")
+      case Some(ov: OldVersionOf[_]) => upgradeToCurrentVersion[T](ov)
+      case Some(nv: T) => nv
+      case _ => throw UpgradeFailure(o, ou.get)
     }
   }
 
@@ -337,33 +324,26 @@ object VersionedJSON {
     )
   }
 
-  /** Wrappers: */
-//  def wrap(v: WritesVersionedJson): String = wrap(v.vid, v.cls, v.toJSON, Cargo.obj)
-//  def wrap(arr: ArrayOf[WritesVersionedJson]): String = wrap( arr.vid, arr.cls, arr.toJSON, Cargo.ar )
-
-  def unwrap(rawJSON: String): Option[Versioned] = { // only for root level deserializations
-    val wrapper = ujson.read(rawJSON)
-    implicit val versions: Array[Version] = VersionIndex.fromArr(wrapper(s"${Cargo.v}").arr)
-    val cargo: ArrayBuffer[ujson.Value] = wrapper(s"${Cargo.o}").arr
-    val rootVersion = versions(cargo(0).num.toInt)
-    Readers.get(rootVersion) match {
-      case Some(rdr: ReadsJSON[_]) => rdr.fromJSON(cargo(1).render())
-      case _ => throw UnknownReader(s"VersionedJSON.Reader found Unregistered Version: $rootVersion")
-    }
-  }
-
-  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = {
-    unwrap(rawJSON) match {
-      case Some(currentVersion: T) => Some(currentVersion)
-      case Some(oldVersion: OldVersionOf[_]) => upgrade[T](oldVersion)
-      //case Some(arrayOf:ArrayJSON[T]) => Some(arrayOf.asInstanceOf[T])
-      case o: Any => throw UnknownJSON(s"Can't deserialize unknown version of $tag: $o")
+  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = for {
+    wrapper <- ujson.read(rawJSON).objOpt
+    versionsArr <- wrapper(s"${Cargo.v}").arrOpt
+    cargoArr <- wrapper(s"${Cargo.o}").arrOpt
+    rootVersionID <- cargoArr(0).numOpt
+    cargo <- cargoArr(1).objOpt
+  } yield {
+    implicit val versions: Array[ReadsJSON[_]] = VersionIndex.fromArr(versionsArr)
+    val cargoJSON = cargo.render()
+    val reader: ReadsJSON[T] = versions(rootVersionID.toInt).asInstanceOf[ReadsJSON[T]]
+    reader.fromJSON(cargoJSON) match {
+      case Some(currentVersion: T) => currentVersion.asInstanceOf[T]
+      case Some(oldVersion: OldVersionOf[_]) => upgradeToCurrentVersion[T](oldVersion)
+      case _ => throw UnknownJSON(tag, cargoJSON)
     }
   }
 }
 
-case class UnknownJSON(msg: String) extends Exception(msg)
-case class JSON_ReadFailure(msg: String) extends Exception(msg)
-case class UnknownReader(msg: String) extends Exception(msg)
-case class UpgradeFailure(msg: String) extends Exception(msg)
-case class UnknownVersionedClass(msg: String) extends Exception(msg)
+case class UnknownJSON(tag: ClassTag[_], rawJSON: String) extends Exception(s"Can't interperet $tag from json: $rawJSON")
+case class JSON_ReadFailure(rawJSON: String) extends Exception(s"Could not read JSON: $rawJSON")
+case class UnknownReader(version: Version) extends Exception(s"No known reader for: $version")
+case class UpgradeFailure(oldVersion:Versioned, upgrade: Any)(implicit tag: ClassTag[_]) extends Exception(s"$tag upgrade failure.  Lost the upgrade path after upgrading $oldVersion to $upgrade.")
+case class UnknownVersionedClass(version: Version) extends Exception(s"Unknown Versioned Class: $version")

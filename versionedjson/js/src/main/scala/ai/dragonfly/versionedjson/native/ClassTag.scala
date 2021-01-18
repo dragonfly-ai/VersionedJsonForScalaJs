@@ -1,6 +1,6 @@
 package ai.dragonfly.versionedjson.native
 
-import ai.dragonfly.versionedjson.{ReadsJSON, ReadsStaleJSON, ReadsVersionedJSON, UnknownVersionedClass, Version, VersionedJSON}
+import ai.dragonfly.versionedjson.{ReadsJSON, ReadsStaleJSON, ReadsVersionedJSON, UnknownReader, UnknownVersionedClass, Version, VersionedJSON}
 
 import scala.collection.mutable
 import scala.scalajs.reflect.annotation.EnableReflectiveInstantiation
@@ -17,7 +17,9 @@ object ClassTag {
   def apply[T <: Versioned](className:String): scala.reflect.ClassTag[T] = {
     Reflect.lookupInstantiatableClass(className) match {
       case Some(ic: InstantiatableClass) => scala.reflect.ClassTag[T](ic.runtimeClass)
-      case _ => throw UnknownVersionedClass(s"Unknown Versioned Classname: $className")
+      case _ =>
+        val version: Version = Version.parseVersionString(className)
+        throw UnknownVersionedClass(version)
     }
   }
 }
@@ -32,7 +34,7 @@ object LoadReader {
    * @return the version info for this class, taken from its reading object
    */
 
-  def apply[T <: ai.dragonfly.versionedjson.Versioned](v: Versioned): ReadsJSON[T] = {
+  def apply[T <: ai.dragonfly.versionedjson.Versioned](v: ai.dragonfly.versionedjson.Versioned): ReadsJSON[T] = {
     val companionObjectName: String = s"${v.getClass.getName}$$"
     knownReaders.get(companionObjectName).orElse[ReadsJSON[_]](Some(
       Reflect.lookupLoadableModuleClass(companionObjectName) match {
@@ -46,7 +48,7 @@ object LoadReader {
               knownReaders.put(companionObjectName, rsj)
               rsj
           }
-        case _ => throw UnknownVersionedClass(s"Unknown Versioned Companion Object: $companionObjectName")
+        case _ => throw UnknownReader(v.version)
       }
     )).get.asInstanceOf[ReadsJSON[T]]
   }

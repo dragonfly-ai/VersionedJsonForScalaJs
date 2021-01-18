@@ -28,8 +28,8 @@ object Test extends App {
 
   println("\nDeserialize stale Foo 0.1 JSON:")
   println(s"Foo0.1.json: ${foo0_1json}")
-  val foo0_1: Foo$0_1 = VersionedJSON.unwrap(foo0_1json).orNull.asInstanceOf[Foo$0_1]
-  println(s"\tval foo0_1 = VersionedJSON.unwrap(Foo0.1.json)} => $foo0_1")
+  val foo0_1: Foo$0_1 = VersionedJSON[Foo$0_1](foo0_1json).orNull
+  println(s"\tval foo0_1 = VersionedJSON[Foo$$0_1](Foo0.1.json).orNull => $foo0_1")
   println("\tUpgrade Foo0.1 to Foo0.2:")
   println(s"\t\tfoo0_1.upgrade => ${foo0_1.upgrade}")
   println("\tRead Foo0.1.json and automatically upgrade to current version of Foo:")
@@ -38,7 +38,7 @@ object Test extends App {
 
   println("\nDeserialize stale Foo 0.2 JSON:")
   println(s"Foo0.2.json: ${foo0_2json}")
-  val foo0_2: Foo$0_2 = VersionedJSON.unwrap(foo0_2json).orNull.asInstanceOf[Foo$0_2]
+  val foo0_2: Foo$0_2 = VersionedJSON[Foo$0_2](foo0_2json).orNull
   println(s"\tval foo0_2 = VersionedJSON.unwrap(Foo0.2.json)} => $foo0_2")
   println("\tUpgrade Foo0.2 to Foo0.3:")
   println(s"\t\tfoo0_2.upgrade => ${foo0_2.upgrade}")
@@ -66,27 +66,28 @@ object Test extends App {
   val wubba: Wubba = Wubba(
     Seq(
       bar,
-      Bar(Foo(3, System.currentTimeMillis(), 3.14159f, Math.PI, true)),
-      Bar(Foo(42, 424242424L, 42.0f, 42.0, false)),
-      Bar(Foo(69, 69696969L, 6.9f, 68.9999999, true))
+      Bar(Foo(3, 3L, 3.14159f, Math.PI, true)),
+      Bar(Foo(42, 42L, 42.0f, 42.0, true)),
+      Bar(Foo(69, 69L, 6.9f, 68.9999999, false))
     )
   )
+
   println(s"\tInitialized wubba, the current version of ${Wubba.version.cls}: $wubba")
   val wubbaVersionedJSON = wubba.toVersionedJSON
   println(s"\twubba.toVersionedJSON => ${wubbaVersionedJSON}")
   println(s"\tWubba.fromVersionedJSON(wubba.toJSON) => ${Wubba.fromVersionedJSON(wubbaVersionedJSON)}")
 
-
   // Woo
   println(s"\n\nRead/Write Nested Versioned Classes with Nested Collections of Diversely typed Versioned Classes:")
   val woo: Woo = Woo(
     Seq(
-      Triangle(new Point2D(0.0, 10.0), new Point2D(-10.0, -5.0), new Point2D(7.5, -3.0), new Point2D(0.0, 0.0), new Color(87, 2, 0)),
-      Square(Math.PI, new Point2D(0.0, 0.0), new Color(87, 2, 0)),
-      Rectangle(2*Math.PI, Math.E, new Point2D(0.0, 0.0), new Color(87, 2, 0)),
-      Circle(Math.PI, new Point2D(0.0, 0.0), new Color(87, 2, 0))
+      Triangle(Point2D(0.0, 10.0), Point2D(-10.0, -5.0), Point2D(7.5, -3.0), Point2D(0.0, 0.0), Color(87, 2, 0)),
+      Square(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0)),
+      Rectangle(2*Math.PI, Math.E, Point2D(0.0, 0.0), Color(87, 2, 0)),
+      Circle(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0))
     )
   )
+
   println(s"\tInitialized woo, the current version of ${Woo.version.cls}: $woo")
   val wooVersionedJSON = woo.toVersionedJSON
   println(s"\twoo.toVersionedJSON => ${wooVersionedJSON}")

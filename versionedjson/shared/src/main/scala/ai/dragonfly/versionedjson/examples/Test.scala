@@ -2,6 +2,8 @@ package ai.dragonfly.versionedjson.examples
 
 import ai.dragonfly.versionedjson.VersionedJSON
 
+import scala.collection.immutable
+
 object Test extends App {
 
   // Past versions of Foo serializations:
@@ -92,5 +94,48 @@ object Test extends App {
   val wooVersionedJSON = woo.toVersionedJSON
   println(s"\twoo.toVersionedJSON => ${wooVersionedJSON}")
   println(s"\tWoo.fromVersionedJSON(woo.toJSON) => ${Woo.fromVersionedJSON(wooVersionedJSON)}")
+
+  println(s"\n\nRead/Write Maps of Versioned Classes keyed by Primitive Types:")
+  val mesopotamianRank: MesopotamianRank = MesopotamianRank(
+    immutable.TreeMap[Int, Mesopotamian](
+      2 -> Mesopotamian("Sargon of Akkad", Era(-2334, -2279)),
+      4 -> Mesopotamian("Ashurbanipal", Era(-668, -627)),
+      1 -> Mesopotamian("Gilgamesh", Era(-2900, -2700)),
+      3 -> Mesopotamian("Hammurabi", Era(-1792, -1750)),
+    )
+  )
+  println(s"\tInitialized mesopotamianRank, the current version of ${MesopotamianRank.version.cls}: $mesopotamianRank")
+  val mesopotamianRankJSON = mesopotamianRank.toVersionedJSON
+  println(s"\tmesopotamianRank.toVersionedJSON => ${mesopotamianRankJSON}")
+  println(s"\tMesopotamianRank.fromVersionedJSON(mesopotamianRank.toVersionedJSON) => ${MesopotamianRank.fromVersionedJSON(mesopotamianRankJSON)}")
+
+  println(s"\n\nRead/Write Maps of Primitive Types keyed by Versioned Classes:")
+  val mesopotamianCitations: MesopotamianCitations = MesopotamianCitations(
+    immutable.Map[Mesopotamian, Int](
+      Mesopotamian("Sargon of Akkad", Era(-2334, -2279)) -> 856956,
+      Mesopotamian("Ashurbanipal", Era(-668, -627)) -> 354951,
+      Mesopotamian("Gilgamesh", Era(-2900, -2700)) -> 988732627,
+      Mesopotamian("Hammurabi", Era(-1792, -1750)) -> 2378,
+    )
+  )
+  println(s"\tInitialized mesopotamianCitations, the current version of ${MesopotamianCitations.version.cls}: $mesopotamianCitations")
+  val mesopotamianCitationsJSON = mesopotamianCitations.toVersionedJSON
+  println(s"\tmesopotamianCitations.toVersionedJSON => ${mesopotamianCitationsJSON}")
+  println(s"\tmesopotamianCitations.fromVersionedJSON(mesopotamianCitations.toVersionedJSON) => ${MesopotamianCitations.fromVersionedJSON(mesopotamianCitationsJSON)}")
+
+
+  println(s"\n\nRead/Write Maps of Versioned Classes keyed by Versioned Classes:")
+  val timeSquareObservations: TimeSquareObservations = TimeSquareObservations(
+    immutable.Map[Square, Era](
+      Square(Math.PI, Point2D(567.58, 0.0005), Color(255, 255, 0)) -> Era(1985, 1986),
+      Square(Math.E, Point2D(2674.33589, 90.01119), Color(87, 2, 0)) -> Era(1955, 1956),
+      Square(42.0, Point2D(0.0, 1.010063), Color(0, 255, 0)) -> Era(1885, 1886),
+      Square(68.9999999, Point2D(11.0, 21.87), Color(128, 0, 128)) -> Era(2015, 2016)
+    )
+  )
+  println(s"\tInitialized timeSquareObservations, the current version of ${MesopotamianCitations.version.cls}: $timeSquareObservations")
+  val timeSquareObservationsJSON = timeSquareObservations.toVersionedJSON
+  println(s"\ttimeSquareObservations.toVersionedJSON => ${timeSquareObservationsJSON}")
+  println(s"\ttimeSquareObservations.fromVersionedJSON(timeSquareObservations.toVersionedJSON) => ${TimeSquareObservations.fromVersionedJSON(timeSquareObservationsJSON)}")
 
 }

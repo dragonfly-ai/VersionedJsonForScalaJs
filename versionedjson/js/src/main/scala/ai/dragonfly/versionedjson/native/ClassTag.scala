@@ -1,6 +1,7 @@
 package ai.dragonfly.versionedjson.native
 
-import ai.dragonfly.versionedjson.{ReadsJSON, ReadsStaleJSON, ReadsVersionedJSON, UnknownReader, UnknownVersionedClass, Version, VersionedJSON}
+import ai.dragonfly.versionedjson
+import versionedjson._
 
 import scala.collection.mutable
 import scala.scalajs.reflect.annotation.EnableReflectiveInstantiation
@@ -19,7 +20,7 @@ object ClassTag {
       case Some(ic: InstantiatableClass) => scala.reflect.ClassTag[T](ic.runtimeClass)
       case _ =>
         val version: Version = Version.parseVersionString(className)
-        throw UnknownVersionedClass(version)
+        throw UnknownVersion(version)
     }
   }
 }
@@ -48,7 +49,7 @@ object LoadReader {
               knownReaders.put(companionObjectName, rsj)
               rsj
           }
-        case _ => throw UnknownReader(v.version)
+        case _ => throw UnknownReader(v)
       }
     )).get.asInstanceOf[ReadsJSON[T]]
   }

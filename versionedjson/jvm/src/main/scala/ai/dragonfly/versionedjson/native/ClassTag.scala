@@ -1,6 +1,6 @@
 package ai.dragonfly.versionedjson.native
 
-import ai.dragonfly.versionedjson.{ReadsJSON, ReadsStaleJSON, ReadsVersionedJSON, Version, VersionedJSON}
+import ai.dragonfly.versionedjson._
 
 import scala.collection.mutable
 import scala.reflect.runtime.universe

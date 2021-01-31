@@ -133,9 +133,18 @@ object Test extends App {
       Square(68.9999999, Point2D(11.0, 21.87), Color(128, 0, 128)) -> Era(2015, 2016)
     )
   )
-  println(s"\tInitialized timeSquareObservations, the current version of ${MesopotamianCitations.version.cls}: $timeSquareObservations")
+  println(s"\tInitialized timeSquareObservations, the current version of ${TimeSquareObservations.version.cls}: $timeSquareObservations")
   val timeSquareObservationsJSON = timeSquareObservations.toVersionedJSON
   println(s"\ttimeSquareObservations.toVersionedJSON => ${timeSquareObservationsJSON}")
   println(s"\ttimeSquareObservations.fromVersionedJSON(timeSquareObservations.toVersionedJSON) => ${TimeSquareObservations.fromVersionedJSON(timeSquareObservationsJSON)}")
+
+  val primitiveMaptTests = MapTests(
+    immutable.TreeMap[Int, Char]( 1 -> 'A', 2 -> 'B', 3 -> 'C' ),
+    immutable.Map[Float, Double]( Math.PI.toFloat -> Math.PI, Math.E.toFloat -> Math.E )
+  )
+  println(s"\tInitialized primitiveMaptTests, the current version of ${MapTests.version.cls}: $primitiveMaptTests")
+  val primitiveMaptTestsJSON = primitiveMaptTests.toVersionedJSON
+  println(s"\tprimitiveMaptTests.toVersionedJSON => ${primitiveMaptTestsJSON}")
+  println(s"\tprimitiveMaptTests.fromVersionedJSON(primitiveMaptTests.toVersionedJSON) => ${MapTests.fromVersionedJSON(primitiveMaptTestsJSON)}")
 
 }

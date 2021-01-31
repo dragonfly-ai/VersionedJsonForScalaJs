@@ -33,7 +33,7 @@ object Versioned {
   import VersionedJSON.Cargo._
 
   object ArrayJSON {
-    def getMajority(elements: WritesVersionedJSON[_]*): Version = {
+    private def getMajority(elements: WritesVersionedJSON[_]*): Version = {
       val hist: mutable.HashMap[Version, Int] = mutable.HashMap[Version, Int]()
       var majorityType: Version = elements(0).version
       var maxCount = 0

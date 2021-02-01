@@ -1,35 +1,34 @@
 package ai.dragonfly.versionedjson
 
-import ai.dragonfly.versionedjson.Primitive.Primitive
 import ai.dragonfly.versionedjson.native
-import ujson.Value
+import ai.dragonfly.versionedjson.Primitive._
 
+import scala.language.postfixOps
+import scala.reflect.ClassTag
 import scala.collection.{immutable, mutable}
 import mutable.ArrayBuffer
-import scala.reflect.ClassTag
+
 
 /**
  *  object for Utility methods.
  */
 
 object Versioned {
+  // implicit conversions:
 
-  // only for stale version readers
-  private def parseVid(tag: ClassTag[_]): Double = java.lang.Double.parseDouble(
-    tag.toString().split("[$]")(1).replace('_', '.')
-  )
+  implicit def jsValueToJSON_String(v: ujson.Value): String = v.render()
 
-  def getTag[T <: Versioned](v: Versioned): ClassTag[T] = native.ClassTag[T]({
-    val className: String = v.getClass.getName
-    val tokens = className.split("\\$")
-    if (tokens.length == 1) tokens(0) // current Version
-    else tokens(0) + "$" + tokens(1) // stale version
-  })
-
+  // for current version readers
   implicit def doubleToVersion(vid: Double)(implicit tag: ClassTag[_ <: Versioned]): Version = Version(tag.toString(), vid, tag)
 
-  // only for stale version readers
-  implicit def clsToVersion(cls:String)(implicit tag: ClassTag[_ <: Versioned]): Version = Version(cls, parseVid(tag), tag)
+  // for stale version readers
+  implicit def clsToVersion(cls:String)(implicit tag: ClassTag[_ <: Versioned]): Version = Version(
+    cls,
+    java.lang.Double.parseDouble( tag.toString().split("[$]")(1).replace('_', '.') ),
+    tag
+  )
+
+
   import VersionedJSON.Cargo._
 
   object ArrayJSON {
@@ -48,7 +47,7 @@ object Versioned {
       majorityType
     }
 
-    def toJSON(elements: WritesVersionedJSON[_]*)(implicit versionIndex:VersionIndex): String = {
+    def toJSON[T <: Versioned](elements: WritesVersionedJSON[T]*)(implicit versionIndex:VersionIndex): String = {
       if (elements.length < 1) s"""{"$a":[]}""" else {
         val majority: Version = getMajority(elements:_*)
         val sb: mutable.StringBuilder = new StringBuilder(s"""{"$a":[${versionIndex(majority)}""")
@@ -59,18 +58,31 @@ object Versioned {
       }
     }
 
-    def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[Array[WritesVersionedJSON[_]]] = for {
+    def fromJSON[V](rawJSON: String)(implicit readers: ReaderCache, tag: ClassTag[V]): Option[Array[V]] = for {
       wrapper <- ujson.read(rawJSON).objOpt
       arr <- wrapper(s"$a").arrOpt
       majorityReaderId <- arr(0).numOpt
     } yield {
       val majorityReader:ReadsJSON[_] = readers(majorityReaderId.toInt)
       val valuesT = arr.tail
-      val out: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](valuesT.length)
+      val out: Array[V] = new Array[V](valuesT.length)
       for (i <- valuesT.indices) {
-        out(i) = valuesT(i).arrOpt match {
-          case Some(m:ArrayBuffer[ujson.Value]) => readers[WritesVersionedJSON[_]](m.render()).get
-          case _ => majorityReader.fromJSON(valuesT(i).render()).get.asInstanceOf[WritesVersionedJSON[_]]
+        val vti = valuesT(i).arrOpt
+        out(i) = vti match {
+          case Some(m: ArrayBuffer[ujson.Value]) =>
+            readers[Versioned](m.render()) match {
+              case Some(p: Primitive[_]) => p.p.asInstanceOf[V]
+              case Some(v: V) => v
+              case Some(v0: Versioned) => throw UnknownVersion(v0.version)
+              case o: Any => throw TypeNotVersioned(o)
+            }
+          case _ =>
+            majorityReader.fromJSON(valuesT(i)) match {
+              case Some(p: Primitive[_]) => p.p.asInstanceOf[V]
+              case Some(v: V) => v
+              case Some(v0: Versioned) => throw UnknownVersion(v0.version)
+              case o: Any => throw TypeNotVersioned(o)
+            }
         }
       }
       out
@@ -82,6 +94,18 @@ object Versioned {
    */
   object MapJSON {
     import Primitive._
+
+    trait Transformer[T] {
+      def transform(t: T): WritesVersionedJSON[Versioned]
+    }
+
+    class DefaultTransformer[T] extends Transformer[T] {
+      override def transform(t: T): WritesVersionedJSON[Versioned] = t match {
+        case wvj: WritesVersionedJSON[_] => wvj.asInstanceOf[WritesVersionedJSON[Versioned]]
+        case o: Any => throw TypeNotVersioned(o)
+      }
+    }
+
     /**
      * Use this method for maps keyed and valued by Versioned Classes.
      *
@@ -93,73 +117,30 @@ object Versioned {
      * @tparam V value type
      * @return serialized JSON String for this map.
      */
-    def toJSON[K <: WritesVersionedJSON[_], V <: WritesVersionedJSON[_]](map: Map[K, V])(implicit versionIndex:VersionIndex = new VersionIndex(), kTag: ClassTag[K], vTag: ClassTag[V]): String = {
+    def toJSON[K, V](
+      map: Map[K, V],
+      keyTransformer: Transformer[K] = new DefaultTransformer[K](),
+      valueTransformer: Transformer[V] = new DefaultTransformer[V]()
+    )(implicit versionIndex:VersionIndex = new VersionIndex(), kTag: ClassTag[WritesVersionedJSON[_]], vTag: ClassTag[WritesVersionedJSON[_]]): String = {
       if (map.size < 1) s"""{"$m":[]}""" else {
-        val keyArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        val valArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
+        val keyArr: Array[WritesVersionedJSON[Versioned]] = new Array[WritesVersionedJSON[Versioned]](map.size)
+        val valArr: Array[WritesVersionedJSON[Versioned]] = new Array[WritesVersionedJSON[Versioned]](map.size)
         var i = 0
-        for ((k: K, v: V) <- map) {
-          keyArr(i) = k
-          valArr(i) = v
+        for ((k, v) <- map) {
+          keyArr(i) = keyTransformer.transform(k)
+          valArr(i) = valueTransformer.transform(v)
           i = i + 1
         }
-        s"""{"$m":[${ArrayJSON.toJSON(keyArr:_*)},${ArrayJSON.toJSON(valArr:_*)}]}"""
+        s"""{"$m":[${ArrayJSON.toJSON[Versioned](keyArr:_*)},${ArrayJSON.toJSON[Versioned](valArr:_*)}]}"""
       }
     }
 
-    def primativeKeyToJSON[P <: AnyVal, K <: Primitive[P], V <: WritesVersionedJSON[_]](map: Map[P, V], keyTransformer: ReadsPrimitiveJSON[P, K])(implicit versionIndex:VersionIndex = new VersionIndex(), vTag: ClassTag[V]): String = {
-      implicit val kTag: ClassTag[K] = keyTransformer.tag
-      if (map.size < 1) s"""{"$m":[]}""" else {
-        val keyArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        val valArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        var i = 0
-        for ((k: P, v: V) <- map) {
-          keyArr(i) = keyTransformer(k)
-          valArr(i) = v
-          i = i + 1
-        }
-        s"""{"$m":[${ArrayJSON.toJSON(keyArr:_*)},${ArrayJSON.toJSON(valArr:_*)}]}"""
-      }
-    }
-
-    def primativeValueToJSON[K <: WritesVersionedJSON[_], P <: AnyVal, V <: Primitive[P]](map: Map[K, P], valueTransformer: ReadsPrimitiveJSON[P, V])(implicit versionIndex:VersionIndex = new VersionIndex(), kTag: ClassTag[K]): String = {
-      implicit val kTag: ClassTag[V] = valueTransformer.tag
-      if (map.size < 1) s"""{"$m":[]}""" else {
-        val keyArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        val valArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        var i = 0
-        for ((k: K, v: P) <- map) {
-          keyArr(i) = k
-          valArr(i) = valueTransformer(v)
-          i = i + 1
-        }
-        s"""{"$m":[${ArrayJSON.toJSON(keyArr:_*)},${ArrayJSON.toJSON(valArr:_*)}]}"""
-      }
-    }
-
-
-    def primativeKeyAndValueToJSON[PK <: AnyVal, K <: Primitive[PK], PV <: AnyVal, V <: Primitive[PV]](map: Map[PK, PV], keyTransformer: ReadsPrimitiveJSON[PK, K], valueTransformer: ReadsPrimitiveJSON[PV, V])(implicit versionIndex:VersionIndex = new VersionIndex(), kTag: ClassTag[K]): String = {
-      if (map.size < 1) s"""{"$m":[]}""" else {
-        val keyArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        val valArr: Array[WritesVersionedJSON[_]] = new Array[WritesVersionedJSON[_]](map.size)
-        var i = 0
-        for ((k: PK, v: PV) <- map) {
-          keyArr(i) = keyTransformer(k)
-          valArr(i) = valueTransformer(v)
-          i = i + 1
-        }
-        s"""{"$m":[${ArrayJSON.toJSON(keyArr:_*)},${ArrayJSON.toJSON(valArr:_*)}]}"""
-      }
-    }
-
-    import scala.language.postfixOps
-
-    def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[immutable.Map[WritesVersionedJSON[_], WritesVersionedJSON[_]]] = for {
+    def fromJSON[K, V](rawJSON: String)(implicit readers: ReaderCache, kTag: ClassTag[K], vTag: ClassTag[V]): Option[immutable.Map[K, V]] = for {
       root <- ujson.read(rawJSON).objOpt
       kvArr <- root(s"$m").arrOpt
-      kArr <- ArrayJSON.fromJSON(kvArr(0).render())
-      vArr <- ArrayJSON.fromJSON(kvArr(1).render())
-    } yield kArr zip[WritesVersionedJSON[_]] vArr toMap
+      kArr <- ArrayJSON.fromJSON[K](kvArr(0))
+      vArr <- ArrayJSON.fromJSON[V](kvArr(1))
+    } yield kArr zip[V] vArr toMap
   }
 }
 
@@ -212,7 +193,11 @@ trait OldVersionOf[T <: Versioned] extends VersionedClass[T] {
   */
 
 sealed trait ReadsJSON[T <: Versioned] extends Versioned {
-  implicit val tag: ClassTag[T] = Versioned.getTag[T](this)
+  implicit val tag: ClassTag[T] = native.ClassTag[T]({
+    val tokens = this.getClass.getName.split("\\$")
+    if (tokens.length == 1) tokens(0) // current Version
+    else tokens(0) + "$" + tokens(1) // stale version
+  })
   def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[T]
 }
 
@@ -234,123 +219,6 @@ trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
 
 trait ReadsStaleJSON[T <: Versioned] extends ReadsJSON[T]
 
-/**
- * Primitive types.
- * boolean
- * byte
- * short
- * int
- * long
- * float
- * double
- * char
- * class java.lang.String
- */
-object Primitive {
-
-  def apply(s: String): string = new string(s)
-
-  trait Primitive[P <: AnyVal] extends WritesVersionedJSON[Primitive[P]] {
-    val p: P
-    def ujsonValue: ujson.Value
-    override def toJSON(implicit versionIndex: VersionIndex): String = ujson.write(ujsonValue)
-  }
-
-  trait ReadsPrimitiveJSON[P <: AnyVal, T <: Primitive[P]] extends ReadsVersionedJSON[T] {
-    override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-    def apply(p: AnyVal): T
-  }
-
-  object boolean extends ReadsPrimitiveJSON[Boolean, boolean] {
-    override val version: Version = Version("boolean", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[boolean] = Some(boolean(java.lang.Boolean.parseBoolean(rawJSON)))
-
-    override def apply(p: AnyVal): boolean = new boolean(p.asInstanceOf[Boolean])
-  }
-  class boolean(override val p: Boolean) extends Primitive[Boolean] {
-    override def ujsonValue: Value = ujson.Bool(p)
-  }
-
-  object byte extends ReadsPrimitiveJSON[Byte, byte] {
-    override val version: Version = Version("byte", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[byte] = Some(byte(java.lang.Byte.parseByte(rawJSON)))
-
-    override def apply(p: AnyVal): byte = new byte(p.asInstanceOf[Byte])
-  }
-  class byte(override val p: Byte) extends Primitive[Byte] {
-    override def ujsonValue: Value = ujson.Num(p)
-  }
-
-  object short extends ReadsPrimitiveJSON[Short, short] {
-    override val version: Version = Version("short", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[short] = Some(short(java.lang.Short.parseShort(rawJSON)))
-
-    override def apply(p: AnyVal): short = new short(p.asInstanceOf[Short])
-  }
-  class short(override val p: Short) extends Primitive[Short] {
-    override def ujsonValue: Value = ujson.Num(p.toInt)
-  }
-
-  object int extends ReadsPrimitiveJSON[Int, int] {
-    override val version: Version = Version("int", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[int] = Some(int(java.lang.Integer.parseInt(rawJSON)))
-
-    override def apply(p: AnyVal): int = new int(p.asInstanceOf[Int])
-  }
-  class int(override val p: Int) extends Primitive[Int] {
-    override def ujsonValue: Value = ujson.Num(p)
-  }
-
-  object long extends ReadsPrimitiveJSON[Long, long] {
-    override val version: Version = Version("long", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[long] = Some(long(java.lang.Long.parseLong(ujson.read(rawJSON).str)))
-
-    override def apply(p: AnyVal): long = new long(p.asInstanceOf[Long])
-  }
-  class long(override val p: Long) extends Primitive[Long] {
-    override def ujsonValue: Value = ujson.Str(p.toString)
-  }
-
-  object float extends ReadsPrimitiveJSON[Float, float] {
-    override val version: Version = Version("float", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[float] = Some(float(java.lang.Float.parseFloat(rawJSON)))
-
-    override def apply(p: AnyVal): float = new float(p.asInstanceOf[Float])
-  }
-  class float(override val p: Float) extends Primitive[Float] {
-    override def ujsonValue: Value = ujson.Num(p)
-  }
-
-  object double extends ReadsPrimitiveJSON[Double, double] {
-    override val version: Version = Version("double", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[double] = Some(double(java.lang.Double.parseDouble(rawJSON)))
-
-    override def apply(p: AnyVal): double = new double(p.asInstanceOf[Double])
-  }
-  class double(override val p: Double) extends Primitive[Double] {
-    override def ujsonValue: Value = ujson.Num(p)
-  }
-
-  object char extends ReadsPrimitiveJSON[Char, char] {
-    override val version: Version = Version("char", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[char] = Some(char(rawJSON.charAt(0)))
-
-    override def apply(p: AnyVal): char = new char(p.asInstanceOf[Char])
-  }
-  class char(override val p: Char) extends Primitive[Char] {
-    override def ujsonValue: Value = ujson.Str(p.toString)
-  }
-
-  object string extends ReadsVersionedJSON[string] {
-    override val version: Version = Version("java.lang.String", 0.0, tag)
-    override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[string] = Some(new string(ujson.read(rawJSON).str))
-  }
-  class string(p: String) extends WritesVersionedJSON[string] {
-    def ujsonValue: Value = ujson.Str(p)
-    override def toJSON(implicit versionIndex: VersionIndex): String = ujson.write(ujsonValue)
-  }
-}
 /**
  * A class to represent Version Info
  */
@@ -393,29 +261,27 @@ class ReaderCache(readers: Array[ReadsJSON[_]]) {
   import Primitive._
   def apply(index: Int): ReadsJSON[_] = index match {
     case i if i > -1 => readers(i)
-    case -1 => boolean
-    case -2 => byte
-    case -3 => char
-    case -4 => double
-    case -5 => float
-    case -6 => int
-    case -7 => long
-    case -8 => short
-    case -9 => string
+    case -1 => VBoolean
+    case -2 => VByte
+    case -3 => VChar
+    case -4 => VDouble
+    case -5 => VFloat
+    case -6 => VInt
+    case -7 => VLong
+    case -8 => VShort
+    case -9 => VString
   }
 
-  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = {
-    for {
-      arr <- ujson.read(rawJSON).arrOpt
-      vid <- arr(0).numOpt
-    } yield {
-      val cargoJSON: String = arr(1).render()
-      val reader = readers(vid.toInt).asInstanceOf[ReadsJSON[T]]
-      reader.fromJSON(cargoJSON)(this) match {
-        case Some(ov:OldVersionOf[_]) => VersionedJSON.upgradeToCurrentVersion[T](ov)
-        case Some(wvj: T) => wvj
-        case o: Any => throw UnknownJSON(reader.tag, cargoJSON)
-      }
+  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = for {
+    arr <- ujson.read(rawJSON).arrOpt
+    vid <- arr(0).numOpt
+  } yield {
+    val cargoJSON: String = arr(1).render()
+    val reader = readers(vid.toInt).asInstanceOf[ReadsJSON[T]]
+    reader.fromJSON(cargoJSON)(this) match {
+      case Some(ov:OldVersionOf[_]) => VersionedJSON.upgradeToCurrentVersion[T](ov)
+      case Some(wvj: T) => wvj
+      case o: Any => throw UnknownJSON(reader.tag, cargoJSON)
     }
   }
 }
@@ -433,15 +299,15 @@ class VersionIndex {
     hist.getOrElse(
       version,
       version match {
-        case boolean.version => -1
-        case byte.version => -2
-        case char.version => -3
-        case double.version => -4
-        case float.version => -5
-        case int.version => -6
-        case long.version => -7
-        case short.version => -8
-        case string.version => -9
+        case VBoolean.version => -1
+        case VByte.version => -2
+        case VChar.version => -3
+        case VDouble.version => -4
+        case VFloat.version => -5
+        case VInt.version => -6
+        case VLong.version => -7
+        case VShort.version => -8
+        case VString.version => -9
         case _ =>
           val index = this.size
           hist.put(version, index)
@@ -493,9 +359,6 @@ object VersionedJSON {
   object Readers {
     private val registry = mutable.HashMap[String, mutable.HashMap[Double, ReadsJSON[_ <: Versioned]]]()
 
-//    import Primitive._
-//    this.apply(boolean, byte, char, double, float, int, long, short, string)
-
     def get (version: Version): Option[ReadsJSON[_]] = get(version.cls, version.vid)
 
     def get (cls: String, vid: Double): Option[ReadsJSON[_]] = {
@@ -504,8 +367,6 @@ object VersionedJSON {
         reader <- hm.get(vid)
       } yield reader
     }
-
-    //def get (v: Versioned): Option[ReadsJSON[_]] = this.get(v.version)
 
     private def put(reader: ReadsJSON[_ <: Versioned]): Option[ReadsJSON[_<: Versioned]] = Some(
       registry.getOrElseUpdate(

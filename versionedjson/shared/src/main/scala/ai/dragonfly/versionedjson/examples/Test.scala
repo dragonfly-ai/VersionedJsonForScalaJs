@@ -138,13 +138,15 @@ object Test extends App {
   println(s"\ttimeSquareObservations.toVersionedJSON => ${timeSquareObservationsJSON}")
   println(s"\ttimeSquareObservations.fromVersionedJSON(timeSquareObservations.toVersionedJSON) => ${TimeSquareObservations.fromVersionedJSON(timeSquareObservationsJSON)}")
 
-  val primitiveMaptTests = MapTests(
+
+  println(s"\n\nRead/Write Maps of primitives keyed by primitives:")
+  val primitiveMapTests = MapTests(
     immutable.TreeMap[Int, Char]( 1 -> 'A', 2 -> 'B', 3 -> 'C' ),
     immutable.Map[Float, Double]( Math.PI.toFloat -> Math.PI, Math.E.toFloat -> Math.E )
   )
-  println(s"\tInitialized primitiveMaptTests, the current version of ${MapTests.version.cls}: $primitiveMaptTests")
-  val primitiveMaptTestsJSON = primitiveMaptTests.toVersionedJSON
-  println(s"\tprimitiveMaptTests.toVersionedJSON => ${primitiveMaptTestsJSON}")
-  println(s"\tprimitiveMaptTests.fromVersionedJSON(primitiveMaptTests.toVersionedJSON) => ${MapTests.fromVersionedJSON(primitiveMaptTestsJSON)}")
+  println(s"\tInitialized primitiveMapTests, the current version of ${MapTests.version.cls}: $primitiveMapTests")
+  val primitiveMapTestsJSON = primitiveMapTests.toVersionedJSON
+  println(s"\tprimitiveMapTests.toVersionedJSON => ${primitiveMapTestsJSON}")
+  println(s"\tprimitiveMapTests.fromVersionedJSON(primitiveMapTests.toVersionedJSON) => ${MapTests.fromVersionedJSON(primitiveMapTestsJSON)}")
 
 }

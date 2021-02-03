@@ -47,13 +47,32 @@ object Test extends App {
   println("\tRead Foo0.2.json and automatically upgrade to current version of Foo:")
   println(s"\t\tVersionedJSON[Foo](Foo0.2.json) => ${VersionedJSON[Foo](foo0_2json)}")
 
+  println(s"\n\nRead/Write Versioned Classes with option as fields:")
+  val optionalFoo1: OptionalFoo = OptionalFoo(1, Some(foo))
+  println(s"\tInitialized optionalFoo1, the current version of ${OptionalFoo.version.cls}: $optionalFoo1")
+
+  val optionalFoo1VersionedJSON = optionalFoo1.toVersionedJSON
+  println(s"\toptionalFoo1.toVersionedJSON => ${optionalFoo1VersionedJSON}")
+  println(s"\tOptionalFoo.fromVersionedJSON(optionalFoo1.toVersionedJSON) => ${OptionalFoo.fromVersionedJSON(optionalFoo1VersionedJSON)}")
+
+  val optionalFoo2: OptionalFoo = OptionalFoo(2, None)
+  println(s"\tInitialized optionalFoo2, the current version of ${OptionalFoo.version.cls}: $optionalFoo2")
+
+  val optionalFoo2VersionedJSON = optionalFoo2.toVersionedJSON
+  println(s"\toptionalFoo2.toVersionedJSON => ${optionalFoo2VersionedJSON}")
+  println(s"\tOptionalFoo.fromVersionedJSON(optionalFoo2.toVersionedJSON) => ${OptionalFoo.fromVersionedJSON(optionalFoo2VersionedJSON)}")
+
+
   println(s"\n\nRead/Write Nested Versioned Classes:")
   val bar: Bar = Bar(foo)
   println(s"\tInitialized bar, the current version of ${Bar.version.cls}: $bar")
 
   val barVersionedJSON = bar.toVersionedJSON
   println(s"\tbar.toVersionedJSON => ${barVersionedJSON}")
-  println(s"\tBar.fromVersionedJSON(bar.toJSON) => ${Bar.fromVersionedJSON(barVersionedJSON)}")
+  val barFromVersionedJSON = Bar.fromVersionedJSON(barVersionedJSON).orNull
+  println(s"\tBar.fromVersionedJSON(bar.toVersionedJSON) => ${barFromVersionedJSON}")
+  println(s"\tbar == Bar.fromVersionedJSON(bar.toVersionedJSON)) => ${bar == barFromVersionedJSON}")
+  if (bar != barFromVersionedJSON) throw new Exception("Serialization error!")
 
   println(s"\n\nRead/Write Bar with old versions of Foo:")
   println(s"\tCurrent Bar with Foo 0.1: $barFoo0_1json")

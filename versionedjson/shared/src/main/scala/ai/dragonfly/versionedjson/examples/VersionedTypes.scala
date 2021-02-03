@@ -16,7 +16,7 @@ object Foo extends ReadsVersionedJSON[Foo] {
     Foo$0_1
   )
 
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Foo] = {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Foo] = {
     for {
       obj <- ujson.read(rawJSON).objOpt
       i <- VInt(obj("i"))
@@ -53,7 +53,7 @@ object Foo extends ReadsVersionedJSON[Foo] {
  */
 
 case class Foo( i: Int, l: Long, f: Float, d: Double, b: Boolean ) extends WritesVersionedJSON[Foo] {
-  override def toJSON(implicit versionIndex:VersionIndex): String = ujson.Obj("i" -> i, "l" -> l, "f" -> f, "d" -> d, "b" -> b)
+  override def toJSON(implicit versionIndex:VersionIndex): String = ujson.Obj("i" -> i, "l" -> l, "f" -> f, "d" -> d, "b" -> b).render()
 }
 
 /**
@@ -66,7 +66,7 @@ case class Foo( i: Int, l: Long, f: Float, d: Double, b: Boolean ) extends Write
 object Foo$0_2 extends ReadsStaleJSON[Foo$0_2] {
   override val version: Version = "com.whatever.Foo"
 
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Foo$0_2] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Foo$0_2] = for {
     obj <- ujson.read(rawJSON).objOpt
     s <- VString(obj("s"))
     i <- VInt(obj("i"))
@@ -103,7 +103,7 @@ object Foo$0_1 extends ReadsStaleJSON[Foo$0_1] {
 
   override val version: Version = "com.whatever.Foo"
 
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Foo$0_1] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Foo$0_1] = for {
     obj <- ujson.read(rawJSON).objOpt
     s <- VString(obj("s"))
     i <- VInt(obj("i"))
@@ -130,6 +130,30 @@ case class Foo$0_1(s: String, i: Int, l: Long, f: Float, d: Double) extends OldV
 }
 
 /**
+ * OptionalFoo demonstrates serializing and deserializing Versioned Classes with options as fields.
+ * If a field has type:  Option[Versioned] simply do not write it into the JSON string.
+ * When deserializing, assume a None value for fields not present in the string.
+ */
+
+object OptionalFoo extends ReadsVersionedJSON[OptionalFoo] {
+  override val version: Version = 0.1
+  override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
+
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[OptionalFoo] = for {
+    obj <- ujson.read(rawJSON).objOpt
+    id <- VInt(obj("id"))
+  } yield {
+    OptionalFoo(id, OptionJSON[Foo](obj.get("foo")))
+  }
+}
+
+case class OptionalFoo(id: Int, foo: Option[Foo]) extends WritesVersionedJSON[OptionalFoo] {
+  override def toJSON(implicit versionIndex: VersionIndex): String = {
+    s"""{"id":$id${OptionJSON[Foo](foo, "foo")}}"""
+  }
+}
+
+/**
  *  Bar demonstrates a way to handle nested Versioned objects.
  */
 
@@ -137,9 +161,9 @@ object Bar extends ReadsVersionedJSON[Bar] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Bar] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Bar] = for {
     obj <- ujson.read(rawJSON).objOpt
-    foo <- Foo.fromVersionedJSON(obj("foo").render())
+    foo <- Foo(obj("foo"))
   } yield Bar(foo)
 }
 
@@ -156,9 +180,9 @@ object Wubba extends ReadsVersionedJSON[Wubba] {
 
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Wubba] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Wubba] = for {
     obj <- ujson.read(rawJSON).objOpt
-    barsArr <- ArrayJSON.fromJSON[Bar](obj("bars"))
+    barsArr <- ArrayJSON.fromJSON[Bar](obj("bars").render())
   } yield Wubba(barsArr.toSeq)
 }
 
@@ -173,10 +197,10 @@ case class Wubba(bars: Seq[Bar]) extends WritesVersionedJSON[Wubba] {
 object Woo extends ReadsVersionedJSON[Woo] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Woo] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Woo] = for {
     obj <- ujson.read(rawJSON).objOpt
     shapesObj <- obj("shapes").objOpt
-    shapesArr <- ArrayJSON.fromJSON[Shape](shapesObj.render())
+    shapesArr <- ArrayJSON[Shape](shapesObj)
   } yield Woo(shapesArr.toSeq)
 }
 
@@ -184,10 +208,11 @@ case class Woo(shapes: Seq[Shape]) extends WritesVersionedJSON[Woo] {
   override def toJSON(implicit versionIndex:VersionIndex): String = s"""{"shapes":${ArrayJSON.toJSON[Shape](shapes:_*)}}"""
 }
 
+
 object Point2D extends ReadsVersionedJSON[Point2D] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Point2D] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Point2D] = for {
     obj <- ujson.read(rawJSON).objOpt
     arr <- obj("p").arrOpt
     x <- arr(0).numOpt
@@ -202,7 +227,7 @@ case class Point2D(x:Double = 0.0, y: Double = 0.0) extends WritesVersionedJSON[
 object Color extends ReadsVersionedJSON[Color] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Color] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Color] = for {
     obj <- ujson.read(rawJSON).objOpt
     r <- obj("r").numOpt
     g <- obj("g").numOpt
@@ -225,10 +250,10 @@ trait Shape extends WritesVersionedJSON[Shape] {
 object Triangle extends ReadsVersionedJSON[Triangle] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Triangle] = {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Triangle] = {
     for {
       obj <- ujson.read(rawJSON).objOpt
-      pointsArr <- ArrayJSON.fromJSON[Point2D](obj("points"))
+      pointsArr <- ArrayJSON[Point2D](obj("points"))
       position <- Point2D.fromVersionedJSON(obj("position").render())
       color <- Color.fromVersionedJSON(obj("color").render())
     } yield Triangle(pointsArr(0), pointsArr(1), pointsArr(2), position, color)
@@ -244,7 +269,7 @@ case class Triangle(p1: Point2D, p2: Point2D, p3: Point2D, override val position
 object Rectangle extends ReadsVersionedJSON[Rectangle] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Rectangle] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Rectangle] = for {
     obj <- ujson.read(rawJSON).objOpt
     width <- obj("w").numOpt
     height <- obj("h").numOpt
@@ -261,7 +286,7 @@ case class Rectangle(width: Double, height: Double, override val position: Point
 object Square extends ReadsVersionedJSON[Square] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Square] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Square] = for {
     obj <- ujson.read(rawJSON).objOpt
     length <- obj("l").numOpt
     position <- Point2D.fromVersionedJSON(obj("position").render())
@@ -281,7 +306,7 @@ case class Square(length: Double, override val position: Point2D = Point2D(), ov
 object Circle extends ReadsVersionedJSON[Circle] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-  override def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[Circle] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Circle] = for {
     obj <- ujson.read(rawJSON).objOpt
     radius <- obj("r").numOpt
     position <- Point2D.fromVersionedJSON(obj("position").render())
@@ -310,9 +335,9 @@ object MesopotamianRank extends ReadsVersionedJSON[MesopotamianRank] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[MesopotamianRank] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[MesopotamianRank] = for {
     obj <- ujson.read(rawJSON).objOpt
-    rank <- MapJSON.fromJSON[Int, Mesopotamian](obj("rank").render())
+    rank <- MapJSON[Int, Mesopotamian](obj("rank"))
   } yield {
     MesopotamianRank( immutable.TreeMap[Int, Mesopotamian]() ++ rank )
   }
@@ -326,7 +351,7 @@ object Era extends ReadsVersionedJSON[Era] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[Era] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[Era] = for {
     obj <- ujson.read(rawJSON).objOpt
     born <- VInt(obj("born"))
     died <- VInt(obj("died"))
@@ -341,10 +366,10 @@ object Mesopotamian extends ReadsVersionedJSON[Mesopotamian] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[Mesopotamian] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[Mesopotamian] = for {
     obj <- ujson.read(rawJSON).objOpt
     name <- obj("name").strOpt
-    era <- Era.fromVersionedJSON(obj("era"))
+    era <- Era(obj("era"))
   } yield Mesopotamian(name, era)
 }
 
@@ -360,9 +385,9 @@ object MesopotamianCitations extends ReadsVersionedJSON[MesopotamianCitations] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[MesopotamianCitations] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[MesopotamianCitations] = for {
     obj <- ujson.read(rawJSON).objOpt
-    rank <- MapJSON.fromJSON[Mesopotamian, Int](obj("citations"))
+    rank <- MapJSON[Mesopotamian, Int](obj("citations"))
   } yield {
     MesopotamianCitations(rank)
   }
@@ -382,7 +407,7 @@ object TimeSquareObservations extends ReadsVersionedJSON[TimeSquareObservations]
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[TimeSquareObservations] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[TimeSquareObservations] = for {
     obj <- ujson.read(rawJSON).objOpt
     observations <- MapJSON.fromJSON[Square, Era](obj("observations").render())
   } yield TimeSquareObservations(observations)
@@ -396,10 +421,10 @@ object MapTests extends ReadsVersionedJSON[MapTests] {
   override val version: Version = 0.1
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
-  override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[MapTests] = for {
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[MapTests] = for {
     obj <- ujson.read(rawJSON).objOpt
-    rankedLetters <- MapJSON.fromJSON[Int, Char](obj("rankedLetters"))
-    piePIE <- MapJSON.fromJSON[Float, Double](obj("piePIE"))
+    rankedLetters <- MapJSON[Int, Char](obj("rankedLetters"))
+    piePIE <- MapJSON[Float, Double](obj("piePIE"))
   } yield MapTests(immutable.TreeMap[Int, Char]() ++ rankedLetters, piePIE)
 }
 

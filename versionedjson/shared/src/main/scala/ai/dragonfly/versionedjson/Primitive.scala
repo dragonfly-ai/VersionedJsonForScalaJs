@@ -57,7 +57,7 @@ object Primitive {
 
   object VBoolean extends ReadsPrimitiveJSON[Boolean] {
     override val version: Version = Version("boolean", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VBoolean] = Some(VBoolean(java.lang.Boolean.parseBoolean(rawJSON)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VBoolean] = Some(VBoolean(java.lang.Boolean.parseBoolean(rawJSON)))
     override def apply(p: AnyVal): VBoolean = new VBoolean(p.asInstanceOf[Boolean])
   }
   class VBoolean(override val p: Boolean) extends Primitive[Boolean] {
@@ -66,7 +66,7 @@ object Primitive {
 
   object VByte extends ReadsPrimitiveJSON[Byte] {
     override val version: Version = Version("byte", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VByte] = Some(VByte(java.lang.Byte.parseByte(rawJSON)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VByte] = Some(VByte(java.lang.Byte.parseByte(rawJSON)))
 
     override def apply(p: AnyVal): VByte = new VByte(p.asInstanceOf[Byte])
   }
@@ -76,7 +76,7 @@ object Primitive {
 
   object VShort extends ReadsPrimitiveJSON[Short] {
     override val version: Version = Version("short", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VShort] = Some(VShort(java.lang.Short.parseShort(rawJSON)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VShort] = Some(VShort(java.lang.Short.parseShort(rawJSON)))
 
     override def apply(p: AnyVal): VShort = new VShort(p.asInstanceOf[Short])
   }
@@ -86,7 +86,7 @@ object Primitive {
 
   object VInt extends ReadsPrimitiveJSON[Int] {
     override val version: Version = Version("int", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VInt] = Some(VInt(java.lang.Integer.parseInt(rawJSON)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VInt] = Some(VInt(java.lang.Integer.parseInt(rawJSON)))
 
     override def apply(p: AnyVal): VInt = new VInt(p.asInstanceOf[Int])
   }
@@ -96,7 +96,7 @@ object Primitive {
 
   object VLong extends ReadsPrimitiveJSON[Long] {
     override val version: Version = Version("long", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VLong] = Some(VLong(java.lang.Long.parseLong(ujson.read(rawJSON).str)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VLong] = Some(VLong(java.lang.Long.parseLong(ujson.read(rawJSON).str)))
 
     override def apply(p: AnyVal): VLong = new VLong(p.asInstanceOf[Long])
   }
@@ -106,7 +106,7 @@ object Primitive {
 
   object VFloat extends ReadsPrimitiveJSON[Float] {
     override val version: Version = Version("float", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VFloat] = Some(VFloat(java.lang.Float.parseFloat(rawJSON)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VFloat] = Some(VFloat(java.lang.Float.parseFloat(rawJSON)))
 
     override def apply(p: AnyVal): VFloat = new VFloat(p.asInstanceOf[Float])
   }
@@ -116,7 +116,7 @@ object Primitive {
 
   object VDouble extends ReadsPrimitiveJSON[Double] {
     override val version: Version = Version("double", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VDouble] = Some(VDouble(java.lang.Double.parseDouble(rawJSON)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VDouble] = Some(VDouble(java.lang.Double.parseDouble(rawJSON)))
 
     override def apply(p: AnyVal): VDouble = new VDouble(p.asInstanceOf[Double])
   }
@@ -126,7 +126,7 @@ object Primitive {
 
   object VChar extends ReadsPrimitiveJSON[Char] {
     override val version: Version = Version("char", 0.0, tag)
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VChar] = Some(VChar(ujson.read(rawJSON).str.charAt(0)))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VChar] = Some(VChar(ujson.read(rawJSON).str.charAt(0)))
 
     override def apply(p: AnyVal): VChar = new VChar(p.asInstanceOf[Char])
   }
@@ -137,7 +137,7 @@ object Primitive {
   object VString extends ReadsVersionedJSON[VString] {
     override val version: Version = Version("java.lang.String", 0.0, tag)
     override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
-    override def fromJSON(rawJSON: String)(implicit readers: ReaderCache): Option[VString] = Some(new VString(ujson.read(rawJSON).str))
+    override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[VString] = Some(new VString(ujson.read(rawJSON).str))
     def apply(rawJSON: String)(implicit readerCache: ReaderCache): Option[VString] = this.fromJSON(rawJSON)
   }
   class VString(val p: String) extends WritesVersionedJSON[VString] {

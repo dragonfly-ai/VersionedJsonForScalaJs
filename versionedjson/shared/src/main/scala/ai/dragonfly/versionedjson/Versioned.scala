@@ -14,9 +14,8 @@ import mutable.ArrayBuffer
  */
 
 object Versioned {
-  // implicit conversions:
 
-  implicit def jsValueToJSON_String(v: ujson.Value): String = v.render()
+  // implicit conversions:
 
   // for current version readers
   implicit def doubleToVersion(vid: Double)(implicit tag: ClassTag[_ <: Versioned]): Version = Version(tag.toString(), vid, tag)
@@ -30,6 +29,18 @@ object Versioned {
 
 
   import VersionedJSON.Cargo._
+
+  object OptionJSON {
+    def apply[T <: Versioned](ov: Option[ujson.Value])(implicit readers: ReaderCache, tag: ClassTag[T]): Option[T] = ov match {
+      case Some(v: ujson.Value) => readers[T](v.render())
+      case _ => None
+    }
+
+    def apply[T <: Versioned](opt: Option[WritesVersionedJSON[T]], name: String, leadingComma: Boolean = true)(implicit versionIndex: VersionIndex): String = opt match {
+      case Some(v: WritesVersionedJSON[T]) => s"""${if(leadingComma) ","}"$name":${v.toVersionedJSON}"""
+      case _ => ""
+    }
+  }
 
   object ArrayJSON {
     private def getMajority(elements: WritesVersionedJSON[_]*): Version = {
@@ -57,9 +68,11 @@ object Versioned {
         sb.append("]}").toString()
       }
     }
+    def fromJSON[V](rawJSON: String)(
+      implicit readers: ReaderCache, tag: ClassTag[V]
+    ): Option[Array[V]] = apply(ujson.read(rawJSON))
 
-    def fromJSON[V](rawJSON: String)(implicit readers: ReaderCache, tag: ClassTag[V]): Option[Array[V]] = for {
-      wrapper <- ujson.read(rawJSON).objOpt
+    def apply[V](wrapper: ujson.Value)(implicit readers: ReaderCache, tag: ClassTag[V]): Option[Array[V]] = for {
       arr <- wrapper(s"$a").arrOpt
       majorityReaderId <- arr(0).numOpt
     } yield {
@@ -77,7 +90,7 @@ object Versioned {
               case o: Any => throw TypeNotVersioned(o)
             }
           case _ =>
-            majorityReader.fromJSON(valuesT(i)) match {
+            majorityReader(valuesT(i)) match {
               case Some(p: Primitive[_]) => p.p.asInstanceOf[V]
               case Some(v: V) => v
               case Some(v0: Versioned) => throw UnknownVersion(v0.version)
@@ -135,11 +148,14 @@ object Versioned {
       }
     }
 
-    def fromJSON[K, V](rawJSON: String)(implicit readers: ReaderCache, kTag: ClassTag[K], vTag: ClassTag[V]): Option[immutable.Map[K, V]] = for {
-      root <- ujson.read(rawJSON).objOpt
-      kvArr <- root(s"$m").arrOpt
-      kArr <- ArrayJSON.fromJSON[K](kvArr(0))
-      vArr <- ArrayJSON.fromJSON[V](kvArr(1))
+    def fromJSON[K, V](rawJSON: String)(
+      implicit readers: ReaderCache, kTag: ClassTag[K], vTag: ClassTag[V]
+    ): Option[immutable.Map[K, V]] = apply[K, V](ujson.read(rawJSON))
+
+    def apply[K, V](v: ujson.Value)(implicit readers: ReaderCache, kTag: ClassTag[K], vTag: ClassTag[V]): Option[immutable.Map[K, V]] = for {
+      kvArr <- v(s"$m").arrOpt
+      kArr <- ArrayJSON[K](kvArr(0).obj)
+      vArr <- ArrayJSON[V](kvArr(1).obj)
     } yield kArr zip[V] vArr toMap
   }
 }
@@ -198,7 +214,11 @@ sealed trait ReadsJSON[T <: Versioned] extends Versioned {
     if (tokens.length == 1) tokens(0) // current Version
     else tokens(0) + "$" + tokens(1) // stale version
   })
-  def fromJSON(rawJSON: String)(implicit readers:ReaderCache): Option[T]
+  def apply(v: ujson.Value)(implicit readerCache:ReaderCache): Option[T] = v match {
+    case arr:ujson.Arr => readerCache[T](arr)
+    case _ => fromJSON(v.render())
+  }
+  def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[T]
 }
 
 /**
@@ -272,16 +292,24 @@ class ReaderCache(readers: Array[ReadsJSON[_]]) {
     case -9 => VString
   }
 
-  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = for {
-    arr <- ujson.read(rawJSON).arrOpt
+  def apply[T <: Versioned](rawJSON: String)(implicit tag: ClassTag[T]): Option[T] = ujson.read(rawJSON).arrOpt match {
+    case Some(arr) => apply[T](arr)
+    case _ =>
+      println(s"error reading $tag from $rawJSON")
+      None
+  }
+
+  implicit val readerCache:ReaderCache = this
+
+  def apply[T <: Versioned](arr: ujson.Arr)(implicit tag: ClassTag[T]): Option[T] = for {
     vid <- arr(0).numOpt
+    cargo <- arr(1).objOpt
+    v <- apply(vid.toInt)(cargo)
   } yield {
-    val cargoJSON: String = arr(1).render()
-    val reader = readers(vid.toInt).asInstanceOf[ReadsJSON[T]]
-    reader.fromJSON(cargoJSON)(this) match {
-      case Some(ov:OldVersionOf[_]) => VersionedJSON.upgradeToCurrentVersion[T](ov)
-      case Some(wvj: T) => wvj
-      case o: Any => throw UnknownJSON(reader.tag, cargoJSON)
+    v match {
+      case wvj: T => wvj
+      case ov: OldVersionOf[_] => VersionedJSON.upgradeToCurrentVersion[T](ov)
+      case _ => throw UnknownJSON(tag, cargo.render())
     }
   }
 }
@@ -350,8 +378,8 @@ object VersionedJSON {
   def upgradeToCurrentVersion[T <: Versioned](o: OldVersionOf[_])(implicit tag: ClassTag[T]): T = {
     val ou = o.upgrade
     ou match {
-      case Some(ov: OldVersionOf[_]) => upgradeToCurrentVersion[T](ov)
       case Some(nv: T) => nv
+      case Some(ov: OldVersionOf[_]) => upgradeToCurrentVersion[T](ov)
       case _ => throw UpgradeFailure(o, ou.get)(tag)
     }
   }
@@ -420,17 +448,10 @@ object VersionedJSON {
     wrapper <- ujson.read(rawJSON).objOpt
     versionsArr <- wrapper(s"${Cargo.v}").arrOpt
     cargoArr <- wrapper(s"${Cargo.o}").arrOpt
-    rootVersionID <- cargoArr(0).numOpt
-    cargo <- cargoArr(1).objOpt
+    v <- ReaderCache.fromArr(versionsArr)[T](cargoArr)
   } yield {
-    implicit val versions: ReaderCache = ReaderCache.fromArr(versionsArr)
-    val cargoJSON = cargo.render()
-    val reader: ReadsJSON[T] = versions(rootVersionID.toInt).asInstanceOf[ReadsJSON[T]]
-    reader.fromJSON(cargoJSON) match {
-      case Some(currentVersion: T) => currentVersion.asInstanceOf[T]
-      case Some(oldVersion: OldVersionOf[_]) => upgradeToCurrentVersion[T](oldVersion)
-      case _ => throw UnknownJSON(tag, cargoJSON)
-    }
+    println(s"tried to read $tag from $rawJSON\n\tgot $v")
+    v
   }
 }
 

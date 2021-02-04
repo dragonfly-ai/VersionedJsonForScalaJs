@@ -182,7 +182,7 @@ object Wubba extends ReadsVersionedJSON[Wubba] {
 
   override def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[Wubba] = for {
     obj <- ujson.read(rawJSON).objOpt
-    barsArr <- ArrayJSON.fromJSON[Bar](obj("bars").render())
+    barsArr <- ArrayJSON[Bar](obj("bars"))
   } yield Wubba(barsArr.toSeq)
 }
 

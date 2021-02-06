@@ -15,30 +15,27 @@ import mutable.ArrayBuffer
 
 object Versioned {
 
-  // implicit conversions:
-
-  // for current version readers
-  implicit def doubleToVersion(vid: Double)(implicit tag: ClassTag[_ <: Versioned]): Version = Version(tag.toString(), vid, tag)
-
-  // for stale version readers
-  implicit def clsToVersion(cls:String)(implicit tag: ClassTag[_ <: Versioned]): Version = Version(
-    cls,
-    java.lang.Double.parseDouble( tag.toString().split("[$]")(1).replace('_', '.') ),
-    tag
-  )
-
-
   import VersionedJSON.Cargo._
 
   object OptionJSON {
-    def apply[T <: Versioned](ov: Option[ujson.Value])(implicit readers: ReaderCache, tag: ClassTag[T]): Option[T] = ov match {
-      case Some(v: ujson.Value) => readers[T](v.render())
-      case _ => None
+
+    def apply(name: String, vOpt: Option[WritesVersionedJSON[_ <: Versioned]], first: Boolean)(implicit versionIndex: VersionIndex): String = {
+      vOpt match {
+        case Some(wvj) => s"""${ if (!first) ',' }"$name":${wvj.toVersionedJSON}"""
+        case _ => ""
+      }
     }
 
-    def apply[T <: Versioned](opt: Option[WritesVersionedJSON[T]], name: String, leadingComma: Boolean = true)(implicit versionIndex: VersionIndex): String = opt match {
-      case Some(v: WritesVersionedJSON[T]) => s"""${if(leadingComma) ","}"$name":${v.toVersionedJSON}"""
-      case _ => ""
+    def apply(namedOptions: Map[String, Option[WritesVersionedJSON[_ <: Versioned]]], first: Boolean)(implicit versionIndex: VersionIndex): String = {
+      var tail: Boolean = !first
+      lazy val sb = new StringBuilder()
+      namedOptions.foreach {
+        so: (String, Option[WritesVersionedJSON[_ <: Versioned]]) =>
+          so._2.foreach {
+            _ => sb.append(apply(so._1, so._2, !tail)); tail = true
+          }
+      }
+      if (tail) sb.toString() else ""
     }
   }
 
@@ -209,16 +206,23 @@ trait OldVersionOf[T <: Versioned] extends VersionedClass[T] {
   */
 
 sealed trait ReadsJSON[T <: Versioned] extends Versioned {
+
   implicit val tag: ClassTag[T] = native.ClassTag[T]({
     val tokens = this.getClass.getName.split("\\$")
     if (tokens.length == 1) tokens(0) // current Version
     else tokens(0) + "$" + tokens(1) // stale version
   })
+  // For handling Options
+  def apply(o: Option[ujson.Value])(implicit readerCache:ReaderCache): Option[T] = o match {
+    case Some(v) => apply(v)
+    case _ => None
+  }
   def apply(v: ujson.Value)(implicit readerCache:ReaderCache): Option[T] = v match {
     case arr:ujson.Arr => readerCache[T](arr)
     case _ => fromJSON(v.render())
   }
   def fromJSON(rawJSON: String)(implicit readerCache:ReaderCache): Option[T]
+
 }
 
 /**
@@ -231,13 +235,23 @@ trait ReadsVersionedJSON[T <: Versioned] extends ReadsJSON[T] {
     if (readers == null) VersionedJSON[T](rawJSON)
     else readers[T](rawJSON)
   }
+
+  import scala.language.implicitConversions
+  implicit def doubleToVersion(vid: Double): Version = Version(tag.toString(), vid, tag)
 }
 
 /**
   Only intended for past versions of classes.
  */
 
-trait ReadsStaleJSON[T <: Versioned] extends ReadsJSON[T]
+trait ReadsStaleJSON[T <: Versioned] extends ReadsJSON[T] {
+  import scala.language.implicitConversions
+  implicit def clsToVersion(cls:String): Version = Version(
+    cls,
+    java.lang.Double.parseDouble( tag.toString().split("[$]")(1).replace('_', '.') ),
+    tag
+  )
+}
 
 /**
  * A class to represent Version Info
@@ -449,10 +463,7 @@ object VersionedJSON {
     versionsArr <- wrapper(s"${Cargo.v}").arrOpt
     cargoArr <- wrapper(s"${Cargo.o}").arrOpt
     v <- ReaderCache.fromArr(versionsArr)[T](cargoArr)
-  } yield {
-    println(s"tried to read $tag from $rawJSON\n\tgot $v")
-    v
-  }
+  } yield v
 }
 
 case class UnknownJSON(tag: ClassTag[_], rawJSON: String) extends Exception(s"Can't interperet $tag from json: $rawJSON")

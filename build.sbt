@@ -10,7 +10,7 @@ lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).
   settings(
     publishTo := Some(Resolver.file("file",  new File("/var/www/maven"))),
     name := "versionedjson",
-    version := "0.2",
+    version := "0.201",
     resolvers += "code.dragonfly.ai" at "https://code.dragonfly.ai:4343",
     libraryDependencies ++= Seq(
       "com.lihaoyi" % "ujson_2.13" % "1.2.2"

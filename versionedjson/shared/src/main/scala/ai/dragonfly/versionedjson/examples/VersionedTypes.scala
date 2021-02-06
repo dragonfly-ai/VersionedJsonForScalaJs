@@ -2,6 +2,8 @@ package ai.dragonfly.versionedjson.examples
 
 import ai.dragonfly.versionedjson._
 import Versioned._
+import Version._
+import scala.language.implicitConversions
 import Primitive._
 
 import scala.collection.immutable
@@ -140,16 +142,18 @@ object OptionalFoo extends ReadsVersionedJSON[OptionalFoo] {
   override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
 
   override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[OptionalFoo] = for {
+    // handle required fields in the for comprehension
     obj <- ujson.read(rawJSON).objOpt
     id <- VInt(obj("id"))
-  } yield {
-    OptionalFoo(id, OptionJSON[Foo](obj.get("foo")))
-  }
+  } yield OptionalFoo( id, Foo(obj.get("foo")) ) // handle option fields with .get in the instantiation line
+
 }
 
 case class OptionalFoo(id: Int, foo: Option[Foo]) extends WritesVersionedJSON[OptionalFoo] {
   override def toJSON(implicit versionIndex: VersionIndex): String = {
-    s"""{"id":$id${OptionJSON[Foo](foo, "foo")}}"""
+    //s"""{"id":$id${OptionJSON(Map[String,Option[WritesVersionedJSON[Foo]]]("foo" -> foo), first = false)}}""" // the verbose way
+    //s"""{"id":$id${OptionJSON(Map("foo" -> foo), first = false)}}"""  // the concise way
+    s"""{"id":$id${OptionJSON("foo", foo, first = false)}}"""  // the concise way
   }
 }
 
@@ -326,6 +330,40 @@ case class Circle(radius: Double, override val position: Point2D = Point2D(), ov
   }
   override def toJSON(implicit versionIndex: VersionIndex): String = s"""{"r":$radius,"position":${position.toVersionedJSON},"color":${color.toVersionedJSON}}"""
 }
+
+
+/**
+ * OptionalShapes demonstrates serializing and deserializing Versioned Classes with several options as fields.
+ * If a field has type:  Option[Versioned] simply do not write it into the JSON string.
+ * When deserializing, assume a None value for fields not present in the string.
+ */
+
+object OptionalShapes extends ReadsVersionedJSON[OptionalShapes] {
+  override val version: Version = 0.1
+  override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
+
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[OptionalShapes] = for {
+    obj <- ujson.read(rawJSON).objOpt
+    id <- VInt(obj("id"))
+  } yield OptionalShapes(
+    id,
+    Triangle(obj.get("triangle")),
+    Rectangle(obj.get("rectangle")),
+    Square(obj.get("square")),
+    Circle(obj.get("circle"))
+  )
+
+}
+
+case class OptionalShapes(id: Int, triangle: Option[Triangle], rectangle: Option[Rectangle], square: Option[Square], circle: Option[Circle]) extends WritesVersionedJSON[OptionalShapes] {
+  override def toJSON(implicit versionIndex: VersionIndex): String = s"""{"id":$id${
+    OptionJSON(  // helper to handle json serialization of classes with many option valued fields
+      Map( "triangle" -> triangle, "rectangle" -> rectangle, "square" -> square, "circle" -> circle),
+      first = false // regulate leading comma
+    )
+  }}"""
+}
+
 
 /**
   Demonstrates Versioned classes with maps of versioned classes keyed by primitives.

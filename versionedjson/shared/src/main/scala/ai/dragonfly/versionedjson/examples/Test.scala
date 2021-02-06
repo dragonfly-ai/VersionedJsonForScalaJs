@@ -47,6 +47,7 @@ object Test extends App {
   println("\tRead Foo0.2.json and automatically upgrade to current version of Foo:")
   println(s"\t\tVersionedJSON[Foo](Foo0.2.json) => ${VersionedJSON[Foo](foo0_2json)}")
 
+
   println(s"\n\nRead/Write Versioned Classes with option as fields:")
   val optionalFoo1: OptionalFoo = OptionalFoo(1, Some(foo))
   println(s"\tInitialized optionalFoo1, the current version of ${OptionalFoo.version.cls}: $optionalFoo1")
@@ -56,11 +57,24 @@ object Test extends App {
   println(s"\tOptionalFoo.fromVersionedJSON(optionalFoo1.toVersionedJSON) => ${OptionalFoo.fromVersionedJSON(optionalFoo1VersionedJSON)}")
 
   val optionalFoo2: OptionalFoo = OptionalFoo(2, None)
-  println(s"\tInitialized optionalFoo2, the current version of ${OptionalFoo.version.cls}: $optionalFoo2")
+  println(s"\n\tInitialized optionalFoo2, the current version of ${OptionalFoo.version.cls}: $optionalFoo2")
 
   val optionalFoo2VersionedJSON = optionalFoo2.toVersionedJSON
   println(s"\toptionalFoo2.toVersionedJSON => ${optionalFoo2VersionedJSON}")
   println(s"\tOptionalFoo.fromVersionedJSON(optionalFoo2.toVersionedJSON) => ${OptionalFoo.fromVersionedJSON(optionalFoo2VersionedJSON)}")
+
+  val optionalShapes1 = OptionalShapes(
+    69,
+    Some(Triangle(Point2D(0.0, 10.0), Point2D(-10.0, -5.0), Point2D(7.5, -3.0), Point2D(0.0, 0.0), Color(87, 2, 0))),
+    None, //Some(Rectangle(2*Math.PI, Math.E, Point2D(0.0, 0.0), Color(87, 2, 0))),
+    None, //Some(Square(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0))),
+    Some(Circle(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0)))
+  )
+  println(s"\n\tInitialized optionalShapes1, the current version of ${OptionalShapes.version.cls}: $optionalShapes1")
+
+  val optionalShapes1JSON = optionalShapes1.toVersionedJSON
+  println(s"\toptionalShapes1.toVersionedJSON => ${optionalShapes1JSON}")
+  println(s"\tOptionalShapes.fromVersionedJSON(optionalShapes1.toVersionedJSON) => ${OptionalShapes.fromVersionedJSON(optionalShapes1JSON)}")
 
 
   println(s"\n\nRead/Write Nested Versioned Classes:")

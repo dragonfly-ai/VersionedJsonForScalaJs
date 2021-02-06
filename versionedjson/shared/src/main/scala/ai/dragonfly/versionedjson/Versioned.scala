@@ -19,11 +19,9 @@ object Versioned {
 
   object OptionJSON {
 
-    def apply(name: String, vOpt: Option[WritesVersionedJSON[_ <: Versioned]], first: Boolean)(implicit versionIndex: VersionIndex): String = {
-      vOpt match {
-        case Some(wvj) => s"""${ if (!first) ',' }"$name":${wvj.toVersionedJSON}"""
-        case _ => ""
-      }
+    def apply(name: String, vOpt: Option[WritesVersionedJSON[_ <: Versioned]], first: Boolean)(implicit versionIndex: VersionIndex): String = vOpt match {
+      case Some(wvj) => s"""${ if (!first) ',' }"$name":${wvj.toVersionedJSON}"""
+      case _ => ""
     }
 
     def apply(namedOptions: Map[String, Option[WritesVersionedJSON[_ <: Versioned]]], first: Boolean)(implicit versionIndex: VersionIndex): String = {

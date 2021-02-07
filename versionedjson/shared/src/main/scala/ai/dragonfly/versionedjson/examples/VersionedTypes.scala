@@ -79,7 +79,7 @@ object Foo$0_2 extends ReadsStaleJSON[Foo$0_2] {
   } yield Foo$0_2(s, i, l, f, d, b)
 }
 
-/** Foo$0_2 exemplifies the second version, 0.2, of the Foo case class.
+/** Foo\$0_2 exemplifies the second version, 0.2, of the Foo case class.
  * Foo 0.2 added the field: [[b: Boolean]] to the Foo type and demonstrates
  * how to add fields to versioned types.
  * old versions of Foo (and other versioned classes) can not write any json.
@@ -115,7 +115,7 @@ object Foo$0_1 extends ReadsStaleJSON[Foo$0_1] {
   } yield Foo$0_1(s, i, l, f, d)
 }
 
-/** Foo$0_1 exemplifies the first version, 0.1, of the Foo case class.
+/** Foo\$0_1 exemplifies the first version, 0.1, of the Foo case class.
  * old versions of Foo (and other versioned classes) can not write any json.
  * Instead, they contain upgrade methods that point through the version chain
  * until they reach the current version.

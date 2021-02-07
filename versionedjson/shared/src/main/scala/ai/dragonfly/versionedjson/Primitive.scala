@@ -19,25 +19,27 @@ import ujson.Value
 object Primitive {
 
   // implicit conversions:
-  implicit def VBooleanToBoolean(b: Primitive[Boolean]): java.lang.Boolean = b.p
-  implicit def VByteToByte(b: Primitive[Byte]): java.lang.Byte = b.p
-  implicit def VShortToShort(b: Primitive[Short]): java.lang.Short = b.p
-  implicit def VIntToInteger(i: Primitive[Int]): java.lang.Integer = i.p
-  implicit def VLongToLong(b: Primitive[Long]): java.lang.Long = b.p
-  implicit def VFloatToFloat(b: Primitive[Float]): java.lang.Float = b.p
-  implicit def VDoubleToDouble(b: Primitive[Double]): java.lang.Double = b.p
-  implicit def VCharToChar(b: Primitive[Char]): java.lang.Character = b.p
+  import scala.language.implicitConversions
 
-  implicit def booleanToBoolean(b: Primitive[Boolean]): Boolean = b.p
-  implicit def byteToByte(b: Primitive[Byte]): Byte = b.p
-  implicit def shortToShort(b: Primitive[Short]): Short = b.p
-  implicit def intToInteger(i: Primitive[Int]): Int = i.p
-  implicit def longToLong(b: Primitive[Long]): Long = b.p
-  implicit def floatToFloat(b: Primitive[Float]): Float = b.p
-  implicit def doubleToDouble(b: Primitive[Double]): Double = b.p
-  implicit def charToChar(b: Primitive[Char]): Char = b.p
+  implicit def VBooleanToBoxedBoolean(b: Primitive[Boolean]): java.lang.Boolean = b.p
+  implicit def VByteToBoxedByte(b: Primitive[Byte]): java.lang.Byte = b.p
+  implicit def VShortToBoxedShort(b: Primitive[Short]): java.lang.Short = b.p
+  implicit def VIntToBoxedInteger(i: Primitive[Int]): java.lang.Integer = i.p
+  implicit def VLongToBoxedLong(b: Primitive[Long]): java.lang.Long = b.p
+  implicit def VFloatToBoxedFloat(b: Primitive[Float]): java.lang.Float = b.p
+  implicit def VDoubleToBoxedDouble(b: Primitive[Double]): java.lang.Double = b.p
+  implicit def VCharToBoxedChar(b: Primitive[Char]): java.lang.Character = b.p
 
-  implicit def stringToString(s: VString): String = s.p
+  implicit def VBooleanToBoolean(b: Primitive[Boolean]): Boolean = b.p
+  implicit def VByteToByte(b: Primitive[Byte]): Byte = b.p
+  implicit def VShortToShort(b: Primitive[Short]): Short = b.p
+  implicit def VIntToInteger(i: Primitive[Int]): Int = i.p
+  implicit def VLongToLong(b: Primitive[Long]): Long = b.p
+  implicit def VFloatToFloat(b: Primitive[Float]): Float = b.p
+  implicit def VDoubleToDouble(b: Primitive[Double]): Double = b.p
+  implicit def VCharToChar(b: Primitive[Char]): Char = b.p
+
+  implicit def VStringToString(s: VString): String = s.p
 
   def apply(s: String): VString = new VString(s)
 

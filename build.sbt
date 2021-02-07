@@ -8,49 +8,26 @@ lazy val root = project.in(file(".")).
 
 lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).
   settings(
-    publishTo := Some(Resolver.file("file",  new File("/var/www/maven"))),
     name := "versionedjson",
-    version := "0.201",
+    version := "0.202",
+    organization := "ai.dragonfly.code",
     resolvers += "code.dragonfly.ai" at "https://code.dragonfly.ai:4343",
     libraryDependencies ++= Seq(
-      "com.lihaoyi" % "ujson_2.13" % "1.2.2"
+      "com.lihaoyi" % "ujson_2.13" % "1.2.3"
     ),
-    organization := "ai.dragonfly.code",
-    mainClass in (Compile, run) := Some("ai.dragonfly.versionedjson.examples.Test")
+    scalacOptions ++= Seq("-feature", "-deprecation"),
+    mainClass in (Compile, run) := Some("ai.dragonfly.versionedjson.examples.Test"),
+    publishTo := Some(Resolver.file("file",  new File("/var/www/maven")))
   ).
   jvmSettings(
-    // Add JVM-specific settings here
-    //mainClass in (Compile, run) := Some("ai.dragonfly.versionedjson.examples.Test")
     libraryDependencies ++= Seq(
       "org.scala-js" %% "scalajs-stubs" % "1.0.0",
       "org.scala-lang" % "scala-reflect" % "2.13.3"
     )
   ).
   jsSettings(
-    // Add JS-specific settings here
     libraryDependencies ++= Seq(
-      "com.lihaoyi" % "ujson_sjs1_2.13" % "1.2.2"
+      "com.lihaoyi" % "ujson_sjs1_2.13" % "1.2.3"
     ),
     scalaJSUseMainModuleInitializer := true
   )
-
-/*
-import sbt.Keys.mainClass
-import sbtcrossproject.CrossPlugin.autoImport.{CrossType, crossProject}
-
-val sharedSettings = Seq(
-  version in ThisBuild := "0.1",
-  scalaVersion := "2.12.6",
-  organization in ThisBuild := "ai.dragonfly.code",
-  publishTo in ThisBuild := Some(Resolver.file("file",  new File( "/var/www/maven" ))),
-  scalacOptions in ThisBuild ++= Seq("-feature"),
-  resolvers += "dragonfly.ai" at "http://code.dragonfly.ai:8080/",
-  libraryDependencies ++= Seq(
-    "ai.dragonfly.code" %%% "snowflake" % "0.2",
-    "com.lihaoyi" %%% "upickle" % "0.7.1"
-  ),
-  mainClass in ThisBuild := Some("ai.dragonfly.versionedjson.examples.test.TestVersionedJson")
-)
-
-lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).settings(sharedSettings)
-*/

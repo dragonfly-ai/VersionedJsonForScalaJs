@@ -7,6 +7,7 @@ import scala.language.postfixOps
 import scala.reflect.ClassTag
 import scala.collection.{immutable, mutable}
 import mutable.ArrayBuffer
+import scala.annotation.tailrec
 
 
 /**
@@ -139,7 +140,7 @@ object Versioned {
           valArr(i) = valueTransformer.transform(v)
           i = i + 1
         }
-        s"""{"$m":[${ArrayJSON.toJSON[Versioned](keyArr:_*)},${ArrayJSON.toJSON[Versioned](valArr:_*)}]}"""
+        s"""{"$m":[${ArrayJSON.toJSON[Versioned](keyArr.toIndexedSeq:_*)},${ArrayJSON.toJSON[Versioned](valArr.toIndexedSeq:_*)}]}"""
       }
     }
 
@@ -387,6 +388,7 @@ class VersionIndex {
 
 object VersionedJSON {
 
+  @tailrec
   def upgradeToCurrentVersion[T <: Versioned](o: OldVersionOf[_])(implicit tag: ClassTag[T]): T = {
     val ou = o.upgrade
     ou match {

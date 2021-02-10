@@ -6,7 +6,7 @@ Fortunately, a subtle assumption about design goals underlies the way architects
 To use this library with SBT:
 <pre>
 resolvers += "dragonfly.ai" at "https://code.dragonfly.ai/"
-libraryDependencies += "ai.dragonfly.code" %% "versionedjson" % "0.202"
+libraryDependencies += "ai.dragonfly.code" %% "versionedjson" % "0.203"
 </pre><br />
 
 As of this release, versionedjson can compactly serialize:

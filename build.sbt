@@ -9,7 +9,7 @@ lazy val root = project.in(file(".")).
 lazy val versionedjson = crossProject(JSPlatform, JVMPlatform).
   settings(
     name := "versionedjson",
-    version := "0.202",
+    version := "0.203",
     organization := "ai.dragonfly.code",
     resolvers += "code.dragonfly.ai" at "https://code.dragonfly.ai:4343",
     libraryDependencies ++= Seq(

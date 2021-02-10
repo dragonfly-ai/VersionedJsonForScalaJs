@@ -63,20 +63,6 @@ object Test extends App {
   println(s"\toptionalFoo2.toVersionedJSON => ${optionalFoo2VersionedJSON}")
   println(s"\tOptionalFoo.fromVersionedJSON(optionalFoo2.toVersionedJSON) => ${OptionalFoo.fromVersionedJSON(optionalFoo2VersionedJSON)}")
 
-  val optionalShapes1 = OptionalShapes(
-    69,
-    Some(Triangle(Point2D(0.0, 10.0), Point2D(-10.0, -5.0), Point2D(7.5, -3.0), Point2D(0.0, 0.0), Color(87, 2, 0))),
-    None, //Some(Rectangle(2*Math.PI, Math.E, Point2D(0.0, 0.0), Color(87, 2, 0))),
-    None, //Some(Square(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0))),
-    Some(Circle(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0)))
-  )
-  println(s"\n\tInitialized optionalShapes1, the current version of ${OptionalShapes.version.cls}: $optionalShapes1")
-
-  val optionalShapes1JSON = optionalShapes1.toVersionedJSON
-  println(s"\toptionalShapes1.toVersionedJSON => ${optionalShapes1JSON}")
-  println(s"\tOptionalShapes.fromVersionedJSON(optionalShapes1.toVersionedJSON) => ${OptionalShapes.fromVersionedJSON(optionalShapes1JSON)}")
-
-
   println(s"\n\nRead/Write Nested Versioned Classes:")
   val bar: Bar = Bar(foo)
   println(s"\tInitialized bar, the current version of ${Bar.version.cls}: $bar")
@@ -127,6 +113,26 @@ object Test extends App {
   val wooVersionedJSON = woo.toVersionedJSON
   println(s"\twoo.toVersionedJSON => ${wooVersionedJSON}")
   println(s"\tWoo.fromVersionedJSON(woo.toJSON) => ${Woo.fromVersionedJSON(wooVersionedJSON)}")
+
+  val doodly: Doodly = Doodly(Some(42), Some(3.14159f), None, Some("If you Wubba me then I will wubba you."))
+  println(s"\n\nInitialized doodly, the current version of ${Doodly.version.cls}: $doodly")
+  val doodlyVersionedJSON = doodly.toVersionedJSON
+  println(s"\tdoodly.toVersionedJSON => ${doodlyVersionedJSON}")
+  println(s"\tDoodly.fromVersionedJSON(doodly.toJSON) => ${Doodly.fromVersionedJSON(doodlyVersionedJSON)}")
+
+  val optionalShapes1 = OptionalShapes(
+    777,
+    Some(Triangle(Point2D(0.0, 10.0), Point2D(-10.0, -5.0), Point2D(7.5, -3.0), Point2D(0.0, 0.0), Color(87, 2, 0))),
+    None, //Some(Rectangle(2*Math.PI, Math.E, Point2D(0.0, 0.0), Color(87, 2, 0))),
+    None, //Some(Square(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0))),
+    Some(Circle(Math.PI, Point2D(0.0, 0.0), Color(87, 2, 0)))
+  )
+  println(s"\n\tInitialized optionalShapes1, the current version of ${OptionalShapes.version.cls}: $optionalShapes1")
+
+  val optionalShapes1JSON = optionalShapes1.toVersionedJSON
+  println(s"\toptionalShapes1.toVersionedJSON => ${optionalShapes1JSON}")
+  println(s"\tOptionalShapes.fromVersionedJSON(optionalShapes1.toVersionedJSON) => ${OptionalShapes.fromVersionedJSON(optionalShapes1JSON)}")
+
 
   println(s"\n\nRead/Write Maps of Versioned Classes keyed by Primitive Types:")
   val mesopotamianRank: MesopotamianRank = MesopotamianRank(

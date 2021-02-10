@@ -20,14 +20,18 @@ object Versioned {
 
   object OptionJSON {
 
-    def apply(name: String, vOpt: Option[WritesVersionedJSON[_ <: Versioned]], first: Boolean)(implicit versionIndex: VersionIndex): String = vOpt match {
-      case Some(wvj) => s"""${ if (!first) ',' }"$name":${wvj.toVersionedJSON}"""
+    def writeJSON_field(name:String, jsonLiteral:String, leadingComma: Boolean): String = s"""${ if (!leadingComma) "," else "" }"$name":$jsonLiteral"""
+
+    def apply(name: String, vOpt: Option[WritesVersionedJSON[_ <: Versioned]], leadingComma: Boolean)(implicit versionIndex: VersionIndex): String = vOpt match {
+      case Some(p: Primitive[_]) => writeJSON_field(name, p.toJSON, leadingComma)
+      case Some(vs: VString) => writeJSON_field(name, vs.toJSON, leadingComma)
+      case Some(wvj) =>  writeJSON_field(name, wvj.toVersionedJSON, leadingComma)
       case _ => ""
     }
 
-    def apply(namedOptions: Map[String, Option[WritesVersionedJSON[_ <: Versioned]]], first: Boolean)(implicit versionIndex: VersionIndex): String = {
-      var tail: Boolean = !first
-      lazy val sb = new StringBuilder()
+    def apply(namedOptions: Map[String, Option[WritesVersionedJSON[_ <: Versioned]]], leadingComma: Boolean)(implicit versionIndex: VersionIndex): String = {
+      var tail: Boolean = !leadingComma
+      lazy val sb = new StringBuilder("")
       namedOptions.foreach {
         so: (String, Option[WritesVersionedJSON[_ <: Versioned]]) =>
           so._2.foreach {
@@ -182,8 +186,8 @@ trait WritesVersionedJSON[T <: Versioned] extends VersionedClass[T] {
   def toJSON(implicit versionIndex:VersionIndex):String
 
   def toVersionedJSON(implicit versionIndex: VersionIndex = new VersionIndex()): String = {
+    val root:Boolean = versionIndex.size == 0  // object hierarchy root?
     val index = versionIndex(this)
-    val root:Boolean = versionIndex.size < 2  // object hierarchy root?
     val versionedJSON = toJSON(versionIndex)
     if (root) {
       s"""{"$v":${versionIndex.toJSON},"$o":[$index,$versionedJSON]}"""
@@ -379,6 +383,12 @@ class VersionIndex {
 
       sb.append("]").toString()
     }
+  }
+
+  override def toString:String = {
+    val sb = new StringBuilder("VersionIndex:")
+    for ((version, index) <- hist) sb.append(s"$index -> $version")
+    sb.toString()
   }
 }
 

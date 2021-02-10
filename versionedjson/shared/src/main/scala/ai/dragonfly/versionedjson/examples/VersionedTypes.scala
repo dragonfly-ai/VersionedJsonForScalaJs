@@ -153,7 +153,7 @@ case class OptionalFoo(id: Int, foo: Option[Foo]) extends WritesVersionedJSON[Op
   override def toJSON(implicit versionIndex: VersionIndex): String = {
     //s"""{"id":$id${OptionJSON(Map[String,Option[WritesVersionedJSON[Foo]]]("foo" -> foo), first = false)}}""" // the verbose way
     //s"""{"id":$id${OptionJSON(Map("foo" -> foo), first = false)}}"""  // the concise way
-    s"""{"id":$id${OptionJSON("foo", foo, first = false)}}"""  // the concise way
+    s"""{"id":$id${OptionJSON("foo", foo, leadingComma = false)}}"""  // the concise way
   }
 }
 
@@ -331,6 +331,35 @@ case class Circle(radius: Double, override val position: Point2D = Point2D(), ov
   override def toJSON(implicit versionIndex: VersionIndex): String = s"""{"r":$radius,"position":${position.toVersionedJSON},"color":${color.toVersionedJSON}}"""
 }
 
+/**
+ * Doodly demonstrates how versioned classes can serialize/deserialize options of primitives.
+ */
+
+object Doodly extends ReadsVersionedJSON[Doodly] {
+  override val version: Version = 0.1
+  override val oldVersions: Array[ReadsStaleJSON[_ <: Versioned]] = Array[ReadsStaleJSON[_ <: Versioned]]()
+
+  override def fromJSON(rawJSON: String)(implicit readerCache: ReaderCache): Option[Doodly] = for {
+    obj <- ujson.read(rawJSON).objOpt
+  } yield new Doodly(
+    uvalToOptionInt(obj.get("i")),
+    obj.get("f"),
+    obj.get("b"),
+    obj.get("s")
+  )
+}
+
+case class Doodly(i: Option[Int], f: Option[Float], b: Option[Boolean], s: Option[String]) extends WritesVersionedJSON[Doodly] {
+  override def toJSON(implicit versionIndex: VersionIndex): String = s"""{${OptionJSON(
+      Map(
+        "i" -> i,
+        "f" -> f,
+        "b" -> b,
+        "s" -> s
+      ),
+      true
+    )}}"""
+}
 
 /**
  * OptionalShapes demonstrates serializing and deserializing Versioned Classes with several options as fields.
@@ -359,11 +388,10 @@ case class OptionalShapes(id: Int, triangle: Option[Triangle], rectangle: Option
   override def toJSON(implicit versionIndex: VersionIndex): String = s"""{"id":$id${
     OptionJSON(  // helper to handle json serialization of classes with many option valued fields
       Map( "triangle" -> triangle, "rectangle" -> rectangle, "square" -> square, "circle" -> circle),
-      first = false // regulate leading comma
+      leadingComma = false // regulate leading comma
     )
   }}"""
 }
-
 
 /**
   Demonstrates Versioned classes with maps of versioned classes keyed by primitives.

@@ -20,22 +20,26 @@ object Versioned {
 
   object OptionJSON {
 
-    def writeJSON_field(name:String, jsonLiteral:String, leadingComma: Boolean): String = s"""${ if (!leadingComma) "," else "" }"$name":$jsonLiteral"""
+    private def writeJSON_field(name:String, jsonLiteral:String, leadingComma: Boolean = true): String = s"""${ if (leadingComma) "," else "" }"$name":$jsonLiteral"""
 
-    def apply(name: String, vOpt: Option[WritesVersionedJSON[_ <: Versioned]], leadingComma: Boolean)(implicit versionIndex: VersionIndex): String = vOpt match {
-      case Some(p: Primitive[_]) => writeJSON_field(name, p.toJSON, leadingComma)
-      case Some(vs: VString) => writeJSON_field(name, vs.toJSON, leadingComma)
-      case Some(wvj) =>  writeJSON_field(name, wvj.toVersionedJSON, leadingComma)
-      case _ => ""
-    }
+    def toJSON(namedOptions: (String, Option[WritesVersionedJSON[_ <: Versioned]])*)(implicit versionIndex: VersionIndex): String = this.toJSON('0')(namedOptions:_*)(versionIndex)
 
-    def apply(namedOptions: Map[String, Option[WritesVersionedJSON[_ <: Versioned]]], leadingComma: Boolean)(implicit versionIndex: VersionIndex): String = {
-      var tail: Boolean = !leadingComma
+    def toJSON(leadingComma:Char)(namedOptions: (String, Option[WritesVersionedJSON[_ <: Versioned]])*)(implicit versionIndex: VersionIndex): String = {
+      var tail: Boolean = leadingComma == ','
       lazy val sb = new StringBuilder("")
       namedOptions.foreach {
         so: (String, Option[WritesVersionedJSON[_ <: Versioned]]) =>
-          so._2.foreach {
-            _ => sb.append(apply(so._1, so._2, !tail)); tail = true
+          so._2 match {
+            case Some(p: Primitive[_]) =>
+              sb.append(writeJSON_field(so._1, p.toJSON, tail))
+              tail = true
+            case Some(vs: VString) =>
+              sb.append(writeJSON_field(so._1, vs.toJSON, tail))
+              tail = true
+            case Some(wvj) =>
+              sb.append(writeJSON_field(so._1, wvj.toVersionedJSON, tail))
+              tail = true
+            case _ =>
           }
       }
       if (tail) sb.toString() else ""

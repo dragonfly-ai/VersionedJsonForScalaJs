@@ -151,9 +151,7 @@ object OptionalFoo extends ReadsVersionedJSON[OptionalFoo] {
 
 case class OptionalFoo(id: Int, foo: Option[Foo]) extends WritesVersionedJSON[OptionalFoo] {
   override def toJSON(implicit versionIndex: VersionIndex): String = {
-    //s"""{"id":$id${OptionJSON(Map[String,Option[WritesVersionedJSON[Foo]]]("foo" -> foo), first = false)}}""" // the verbose way
-    //s"""{"id":$id${OptionJSON(Map("foo" -> foo), first = false)}}"""  // the concise way
-    s"""{"id":$id${OptionJSON("foo", foo, leadingComma = false)}}"""  // the concise way
+    s"""{"id":$id${OptionJSON.toJSON(',')("foo" -> foo)}}"""
   }
 }
 
@@ -350,14 +348,11 @@ object Doodly extends ReadsVersionedJSON[Doodly] {
 }
 
 case class Doodly(i: Option[Int], f: Option[Float], b: Option[Boolean], s: Option[String]) extends WritesVersionedJSON[Doodly] {
-  override def toJSON(implicit versionIndex: VersionIndex): String = s"""{${OptionJSON(
-      Map(
-        "i" -> i,
-        "f" -> f,
-        "b" -> b,
-        "s" -> s
-      ),
-      true
+  override def toJSON(implicit versionIndex: VersionIndex): String = s"""{${OptionJSON.toJSON(
+      "i" -> i,
+      "f" -> f,
+      "b" -> b,
+      "s" -> s
     )}}"""
 }
 
@@ -386,9 +381,11 @@ object OptionalShapes extends ReadsVersionedJSON[OptionalShapes] {
 
 case class OptionalShapes(id: Int, triangle: Option[Triangle], rectangle: Option[Rectangle], square: Option[Square], circle: Option[Circle]) extends WritesVersionedJSON[OptionalShapes] {
   override def toJSON(implicit versionIndex: VersionIndex): String = s"""{"id":$id${
-    OptionJSON(  // helper to handle json serialization of classes with many option valued fields
-      Map( "triangle" -> triangle, "rectangle" -> rectangle, "square" -> square, "circle" -> circle),
-      leadingComma = false // regulate leading comma
+    OptionJSON.toJSON(',')(
+      "triangle" -> triangle,
+      "rectangle" -> rectangle,
+      "square" -> square,
+      "circle" -> circle
     )
   }}"""
 }
